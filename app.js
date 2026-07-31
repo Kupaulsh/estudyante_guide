@@ -232,6 +232,20 @@ function openDay(iso){
 /* =========================================================
    SCHEDULE
 ========================================================= */
+function parseTimeStart(timeStr){
+  if(!timeStr) return 24*60+1; // no time set — sort to the end of the day
+  const m = timeStr.match(/(\d{1,2}):(\d{2})/);
+  if(!m) return 24*60+1;
+  let hour = parseInt(m[1],10);
+  const min = parseInt(m[2],10);
+  const ampm = timeStr.match(/\b(AM|PM)\b/i);
+  if(ampm){
+    const p = ampm[1].toUpperCase();
+    if(p==='PM' && hour<12) hour += 12;
+    if(p==='AM' && hour===12) hour = 0;
+  }
+  return hour*60+min;
+}
 function renderSchedule(){
   const order = {Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6};
   const rows = [];
@@ -242,7 +256,11 @@ function renderSchedule(){
       s.schedule.forEach(sl=> rows.push({subject:s, day:sl.day, time:sl.time, room:sl.room, professor:sl.professor}));
     }
   });
-  rows.sort((a,b)=>(order[a.day]??9)-(order[b.day]??9));
+  rows.sort((a,b)=>{
+    const dayDiff = (order[a.day]??9)-(order[b.day]??9);
+    if(dayDiff!==0) return dayDiff;
+    return parseTimeStart(a.time)-parseTimeStart(b.time);
+  });
   let html = '';
   if(rows.length===0) html = `<p style="color:var(--ink-soft);">No schedule yet.</p>`;
   let lastDay = undefined;
