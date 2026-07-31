@@ -214,8 +214,11 @@ function adminEditSchedule(id){
   const D = DATA[adminSchool];
   const s = D.subjects.find(x=>x.id===id);
   const html = `<h3>Schedule — ${s.name}</h3>
-  <div class="section-label" style="margin-top:0;">Meeting times</div>
+  <p style="color:var(--ink-soft);font-size:12.5px;">Add one entry per class meeting — e.g. add a "Mon" one for lecture, then a separate "Wed" one for lab. Each stays independent.</p>
+  <div class="section-label" style="margin-top:16px;">Current meeting times</div>
   <div id="scheduleList">${adminScheduleList(s.schedule, id)}</div>
+  <hr style="margin:20px 0;border:none;border-top:1px solid var(--line);">
+  <div class="section-label" style="margin-top:0;">Add a new meeting time</div>
   <div class="form-grid">
     <div class="two-col">
       <div><label>Day</label>
@@ -227,7 +230,7 @@ function adminEditSchedule(id){
       <div><label>Professor</label><input id="sc_prof_${id}" placeholder="Professor name"></div>
       <div><label>Room</label><input id="sc_room_${id}" placeholder="Room number"></div>
     </div>
-    <button class="btn ghost" onclick="adminAddScheduleSlot('${id}')">+ Add meeting time</button>
+    <button class="btn" onclick="adminAddScheduleSlot('${id}')">+ Add this meeting time</button>
   </div>`;
   openModal(html);
 }
