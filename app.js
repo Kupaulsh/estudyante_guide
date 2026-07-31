@@ -234,18 +234,26 @@ function openDay(iso){
 ========================================================= */
 function renderSchedule(){
   const order = {Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6};
-  const subs = [...S().subjects].sort((a,b)=>(order[a.day]??9)-(order[b.day]??9));
+  const rows = [];
+  S().subjects.forEach(s=>{
+    if(s.schedule.length===0){
+      rows.push({subject:s, day:null, time:'', room:'', professor:''});
+    } else {
+      s.schedule.forEach(sl=> rows.push({subject:s, day:sl.day, time:sl.time, room:sl.room, professor:sl.professor}));
+    }
+  });
+  rows.sort((a,b)=>(order[a.day]??9)-(order[b.day]??9));
   let html = '';
-  if(subs.length===0) html = `<p style="color:var(--ink-soft);">No schedule yet.</p>`;
-  let lastDay = null;
-  subs.forEach(s=>{
-    if(s.day !== lastDay){ html += `<div class="section-label">${s.day||'Unscheduled'}</div>`; lastDay = s.day; }
+  if(rows.length===0) html = `<p style="color:var(--ink-soft);">No schedule yet.</p>`;
+  let lastDay = undefined;
+  rows.forEach(r=>{
+    if(r.day !== lastDay){ html += `<div class="section-label">${r.day||'Unscheduled'}</div>`; lastDay = r.day; }
     html += `<div class="sched-item">
-      <div class="sched-swatch" style="background:${s.color}"></div>
-      <div class="sched-time">${s.time||'TBA'}</div>
+      <div class="sched-swatch" style="background:${r.subject.color}"></div>
+      <div class="sched-time">${r.time||'TBA'}</div>
       <div class="sched-body">
-        <h4>${s.name}</h4>
-        <p>${s.professor||'Professor TBA'} · Room ${s.room||'TBA'}</p>
+        <h4>${r.subject.name}</h4>
+        <p>${r.professor||'Professor TBA'} · Room ${r.room||'TBA'}</p>
       </div>
     </div>`;
   });
@@ -272,7 +280,14 @@ function renderSubjects(){
 }
 function openSubject(id){
   const s = S().subjects.find(x=>x.id===id);
-  let html = `<h3>${s.name}</h3><p style="color:var(--ink-soft);font-size:13px;">${s.professor||'Professor TBA'} · Room ${s.room||'TBA'} · ${s.day||''} ${s.time||''}</p>`;
+  let html = `<h3>${s.name}</h3>`;
+  if(s.schedule.length===0){
+    html += `<p style="color:var(--ink-soft);font-size:13px;">No schedule set yet.</p>`;
+  } else {
+    s.schedule.forEach(sl=>{
+      html += `<p style="color:var(--ink-soft);font-size:13px;margin:0 0 4px;">${sl.day||''} · ${sl.time||'TBA'} · ${sl.professor||'Professor TBA'} · Room ${sl.room||'TBA'}</p>`;
+    });
+  }
   html += `<div class="section-label">Syllabus</div>`;
   if(s.syllabus.length===0) html += `<p style="font-size:13px;color:var(--ink-soft);">No syllabus uploaded yet.</p>`;
   s.syllabus.forEach(f=> html += fileRow(f));

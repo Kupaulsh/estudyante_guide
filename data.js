@@ -13,7 +13,7 @@ async function loadSchoolData(schoolId){
   const [schoolRes, subjectsRes, eventsRes, activitiesRes, faqsRes, rulesRes, guidelinesRes] = await Promise.all([
     supabase.from('schools').select('*').eq('id', schoolId).maybeSingle(),
     supabase.from('subjects')
-      .select('*, syllabus_files(*), materials(*), flashcards(*), quiz_questions(*)')
+      .select('*, schedule_slots(*), syllabus_files(*), materials(*), flashcards(*), quiz_questions(*)')
       .eq('school_id', schoolId)
       .order('created_at', {ascending:true}),
     supabase.from('events').select('*').eq('school_id', schoolId),
@@ -32,8 +32,8 @@ async function loadSchoolData(schoolId){
     accentColor: schoolRes.data?.accent_color || '#2F6F5E',
     bgColor: schoolRes.data?.bg_color || '#F6F5F0',
     subjects: (subjectsRes.data || []).map(s => ({
-      id: s.id, code: s.code, name: s.name, professor: s.professor, room: s.room,
-      day: s.day, time: s.time, color: s.color,
+      id: s.id, code: s.code, name: s.name, color: s.color,
+      schedule: (s.schedule_slots || []).map(sl => ({id:sl.id, day:sl.day, time:sl.time, room:sl.room, professor:sl.professor})),
       syllabus: (s.syllabus_files || []).map(f => ({id:f.id, label:f.label, type:f.type, url:f.url})),
       materials: (s.materials || []).map(f => ({id:f.id, label:f.label, type:f.type, url:f.url})),
       flashcards: (s.flashcards || []).map(f => ({id:f.id, q:f.question, a:f.answer})),
@@ -63,7 +63,7 @@ async function dbSaveTheme(schoolId, accentColor, bgColor){
 /* ---- Subjects ---- */
 async function dbAddSubject(schoolId){
   const {data, error} = await supabase.from('subjects').insert({
-    school_id: schoolId, code:'NEW', name:'New Subject', day:'Mon', color:'#2F6F5E'
+    school_id: schoolId, code:'NEW', name:'New Subject', color:'#2F6F5E'
   }).select().single();
   if(error){ alert('Could not add subject: '+error.message); return null; }
   return data.id;
@@ -75,6 +75,18 @@ async function dbSaveSubject(id, fields){
 async function dbDeleteSubject(id){
   const {error} = await supabase.from('subjects').delete().eq('id', id);
   if(error) alert('Could not delete subject: '+error.message);
+}
+
+/* ---- Schedule slots (a subject can have more than one) ---- */
+async function dbAddScheduleSlot(subjectId, day, time, room, professor){
+  const {error} = await supabase.from('schedule_slots').insert({
+    subject_id: subjectId, day, time, room, professor
+  });
+  if(error) alert('Could not add schedule slot: '+error.message);
+}
+async function dbDeleteScheduleSlot(id){
+  const {error} = await supabase.from('schedule_slots').delete().eq('id', id);
+  if(error) alert('Could not delete schedule slot: '+error.message);
 }
 
 /* ---- Syllabus / Materials (same shape, different table) ---- */
