@@ -74,7 +74,7 @@ checkAdminSession();
 /* =========================================================
    ADMIN PANEL
 ========================================================= */
-const ADMIN_TABS = ['subjects','events','activities','faqs','rules','theme'];
+const ADMIN_TABS = ['subjects','schedule','reviewers','events','activities','faqs','rules','theme'];
 
 async function refreshAdminData(){
   DATA[adminSchool] = await loadSchoolData(adminSchool);
@@ -93,6 +93,8 @@ function renderAdmin(){
   const D = DATA[adminSchool];
   if(!D){ body.innerHTML = `<p style="color:var(--ink-soft);">Loading…</p>`; return; }
   if(adminTab==='subjects') body.innerHTML = adminSubjects(D);
+  if(adminTab==='schedule') body.innerHTML = adminSchedule(D);
+  if(adminTab==='reviewers') body.innerHTML = adminReviewers(D);
   if(adminTab==='events') body.innerHTML = adminEvents(D);
   if(adminTab==='activities') body.innerHTML = adminActivities(D);
   if(adminTab==='faqs') body.innerHTML = adminFaqs(D);
@@ -106,8 +108,8 @@ function adminSubjects(D){
   D.subjects.forEach(s=>{
     html += `<div class="admin-list-item">
       <div class="info">
-        <b>${s.name}</b> <small>${s.code} · ${s.professor||'TBA'} · Room ${s.room||'TBA'} · ${s.day||''} ${s.time||''}</small>
-        <small>${s.syllabus.length} syllabus file(s) · ${s.materials.length} material(s) · ${s.flashcards.length} flashcard(s) · ${s.quiz.length} quiz Q(s)</small>
+        <b>${s.name}</b> <small>${s.code}</small>
+        <small>${s.syllabus.length} syllabus file(s) · ${s.materials.length} material(s)</small>
       </div>
       <div style="display:flex;gap:6px;">
         <button class="btn sm ghost" onclick="adminEditSubject('${s.id}')">Edit</button>
@@ -139,16 +141,6 @@ function adminEditSubject(id){
       <div><label>Code</label><input id="f_code" value="${escAttr(s.code)}"></div>
       <div><label>Color</label><input id="f_color" type="color" value="${s.color}"></div>
     </div>
-    <div class="two-col">
-      <div><label>Professor</label><input id="f_prof" value="${escAttr(s.professor)}"></div>
-      <div><label>Room</label><input id="f_room" value="${escAttr(s.room)}"></div>
-    </div>
-    <div class="two-col">
-      <div><label>Day</label>
-        <select id="f_day">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<option ${d===s.day?'selected':''}>${d}</option>`).join('')}</select>
-      </div>
-      <div><label>Time slot</label><input id="f_time" value="${escAttr(s.time)}" placeholder="8:00–10:00 AM"></div>
-    </div>
   </div>
   <button class="btn" onclick="adminSaveSubject('${id}')">Save details</button>
   <hr style="margin:20px 0;border:none;border-top:1px solid var(--line);">
@@ -159,27 +151,7 @@ function adminEditSubject(id){
 
   <div class="section-label">Materials (PDF / PPTX / DOCX)</div>
   <div id="materialsList">${adminFileList(s.materials,'materials',id)}</div>
-  ${adminFileAddForm('materials', id)}
-
-  <div class="section-label">Flashcards</div>
-  <div id="flashList">${s.flashcards.map((f)=>`<div class="admin-list-item"><div class="info"><b>Q:</b> ${f.q}<br><small>A: ${f.a}</small></div><button class="btn sm danger" onclick="adminDeleteFlash('${id}','${f.id}')">Delete</button></div>`).join('')}</div>
-  <div class="form-grid">
-    <input id="fc_q" placeholder="Question">
-    <input id="fc_a" placeholder="Answer">
-    <button class="btn ghost" onclick="adminAddFlash('${id}')">+ Add flashcard</button>
-  </div>
-
-  <div class="section-label">Quiz questions</div>
-  <div id="quizList">${s.quiz.map((q)=>`<div class="admin-list-item"><div class="info"><b>${q.q}</b><br><small>Choices: ${q.choices.join(' | ')} — Correct: ${q.choices[q.answer]} — ${q.difficulty}</small></div><button class="btn sm danger" onclick="adminDeleteQuiz('${id}','${q.id}')">Delete</button></div>`).join('')}</div>
-  <div class="form-grid">
-    <input id="qz_q" placeholder="Question">
-    <input id="qz_choices" placeholder="Choices, comma-separated (e.g. A, B, C, D)">
-    <input id="qz_answer" placeholder="Correct answer (must match one choice exactly)">
-    <select id="qz_diff">
-      <option>Easy</option><option>Average</option><option>Hard</option><option>Very Hard</option>
-    </select>
-    <button class="btn ghost" onclick="adminAddQuiz('${id}')">+ Add quiz question</button>
-  </div>`;
+  ${adminFileAddForm('materials', id)}`;
   openModal(html);
 }
 function adminFileList(list, table, subjId){
@@ -210,18 +182,116 @@ async function adminDeleteFile(table, fileId, subjId){
   await refreshAdminData();
   adminEditSubject(subjId);
 }
+async function adminSaveSubject(id){
+  await dbSaveSubject(id, {
+    name: document.getElementById('f_name').value,
+    code: document.getElementById('f_code').value,
+    color: document.getElementById('f_color').value
+  });
+  await refreshAdminData();
+  renderAdmin();
+  closeModal();
+}
+
+/* ---- Schedule admin (day/time/room/professor per subject) ---- */
+function adminSchedule(D){
+  if(D.subjects.length===0) return `<p style="color:var(--ink-soft);">Add subjects first (in the Subjects tab), then set their schedule here.</p>`;
+  let html = '';
+  D.subjects.forEach(s=>{
+    html += `<div class="admin-list-item">
+      <div class="info">
+        <b>${s.name}</b>
+        <small>${s.day||'No day set'} · ${s.time||'No time set'} · Room ${s.room||'TBA'} · ${s.professor||'Professor TBA'}</small>
+      </div>
+      <button class="btn sm ghost" onclick="adminEditSchedule('${s.id}')">Edit</button>
+    </div>`;
+  });
+  return html;
+}
+function adminEditSchedule(id){
+  const D = DATA[adminSchool];
+  const s = D.subjects.find(x=>x.id===id);
+  const html = `<h3>Schedule — ${s.name}</h3>
+  <div class="form-grid">
+    <div class="two-col">
+      <div><label>Day</label>
+        <select id="sc_day">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<option ${d===s.day?'selected':''}>${d}</option>`).join('')}</select>
+      </div>
+      <div><label>Time slot</label><input id="sc_time" value="${escAttr(s.time)}" placeholder="8:00–10:00 AM"></div>
+    </div>
+    <div class="two-col">
+      <div><label>Professor</label><input id="sc_prof" value="${escAttr(s.professor)}"></div>
+      <div><label>Room</label><input id="sc_room" value="${escAttr(s.room)}"></div>
+    </div>
+  </div>
+  <button class="btn" onclick="adminSaveSchedule('${id}')">Save schedule</button>`;
+  openModal(html);
+}
+async function adminSaveSchedule(id){
+  await dbSaveSubject(id, {
+    day: document.getElementById('sc_day').value,
+    time: document.getElementById('sc_time').value,
+    professor: document.getElementById('sc_prof').value,
+    room: document.getElementById('sc_room').value
+  });
+  await refreshAdminData();
+  renderAdmin();
+  closeModal();
+}
+
+/* ---- Reviewers admin (flashcards + quiz per subject) ---- */
+function adminReviewers(D){
+  if(D.subjects.length===0) return `<p style="color:var(--ink-soft);">Add subjects first (in the Subjects tab), then add flashcards and quiz questions here.</p>`;
+  let html = '';
+  D.subjects.forEach(s=>{
+    html += `<div class="admin-list-item">
+      <div class="info">
+        <b>${s.name}</b>
+        <small>${s.flashcards.length} flashcard(s) · ${s.quiz.length} quiz question(s)</small>
+      </div>
+      <button class="btn sm ghost" onclick="adminEditReviewer('${s.id}')">Edit</button>
+    </div>`;
+  });
+  return html;
+}
+function adminEditReviewer(id){
+  const D = DATA[adminSchool];
+  const s = D.subjects.find(x=>x.id===id);
+  const html = `<h3>Reviewers — ${s.name}</h3>
+
+  <div class="section-label" style="margin-top:0;">Flashcards</div>
+  <div id="flashList">${s.flashcards.map((f)=>`<div class="admin-list-item"><div class="info"><b>Q:</b> ${f.q}<br><small>A: ${f.a}</small></div><button class="btn sm danger" onclick="adminDeleteFlash('${id}','${f.id}')">Delete</button></div>`).join('')}</div>
+  <div class="form-grid">
+    <input id="fc_q" placeholder="Question">
+    <input id="fc_a" placeholder="Answer">
+    <button class="btn ghost" onclick="adminAddFlash('${id}')">+ Add flashcard</button>
+  </div>
+
+  <div class="section-label">Quiz questions</div>
+  <div id="quizList">${s.quiz.map((q)=>`<div class="admin-list-item"><div class="info"><b>${q.q}</b><br><small>Choices: ${q.choices.join(' | ')} — Correct: ${q.choices[q.answer]} — ${q.difficulty}</small></div><button class="btn sm danger" onclick="adminDeleteQuiz('${id}','${q.id}')">Delete</button></div>`).join('')}</div>
+  <div class="form-grid">
+    <input id="qz_q" placeholder="Question">
+    <input id="qz_choices" placeholder="Choices, comma-separated (e.g. A, B, C, D)">
+    <input id="qz_answer" placeholder="Correct answer (must match one choice exactly)">
+    <select id="qz_diff">
+      <option>Easy</option><option>Average</option><option>Hard</option><option>Very Hard</option>
+    </select>
+    <button class="btn ghost" onclick="adminAddQuiz('${id}')">+ Add quiz question</button>
+  </div>`;
+  openModal(html);
+}
 async function adminAddFlash(subjId){
   const q = document.getElementById('fc_q').value.trim();
   const a = document.getElementById('fc_a').value.trim();
   if(!q||!a){alert('Fill both fields.');return;}
   await dbAddFlashcard(subjId, q, a);
   await refreshAdminData();
-  adminEditSubject(subjId);
+  adminEditReviewer(subjId);
 }
 async function adminDeleteFlash(subjId, flashId){
   await dbDeleteFlashcard(flashId);
   await refreshAdminData();
-  adminEditSubject(subjId);
+  adminEditReviewer(subjId);
 }
 async function adminAddQuiz(subjId){
   const q = document.getElementById('qz_q').value.trim();
@@ -232,26 +302,12 @@ async function adminAddQuiz(subjId){
   if(!q||choices.length<2||answerIdx===-1){ alert('Fill all fields; correct answer must exactly match one choice.'); return; }
   await dbAddQuiz(subjId, q, choices, answerIdx, diff);
   await refreshAdminData();
-  adminEditSubject(subjId);
+  adminEditReviewer(subjId);
 }
 async function adminDeleteQuiz(subjId, quizId){
   await dbDeleteQuiz(quizId);
   await refreshAdminData();
-  adminEditSubject(subjId);
-}
-async function adminSaveSubject(id){
-  await dbSaveSubject(id, {
-    name: document.getElementById('f_name').value,
-    code: document.getElementById('f_code').value,
-    color: document.getElementById('f_color').value,
-    professor: document.getElementById('f_prof').value,
-    room: document.getElementById('f_room').value,
-    day: document.getElementById('f_day').value,
-    time: document.getElementById('f_time').value
-  });
-  await refreshAdminData();
-  renderAdmin();
-  closeModal();
+  adminEditReviewer(subjId);
 }
 
 /* ---- Events admin ---- */
