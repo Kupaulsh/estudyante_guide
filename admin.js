@@ -74,7 +74,7 @@ checkAdminSession();
 /* =========================================================
    ADMIN PANEL
 ========================================================= */
-const ADMIN_TABS = ['subjects','events','activities','faqs','rules'];
+const ADMIN_TABS = ['subjects','events','activities','faqs','rules','theme'];
 
 async function refreshAdminData(){
   DATA[adminSchool] = await loadSchoolData(adminSchool);
@@ -97,6 +97,7 @@ function renderAdmin(){
   if(adminTab==='activities') body.innerHTML = adminActivities(D);
   if(adminTab==='faqs') body.innerHTML = adminFaqs(D);
   if(adminTab==='rules') body.innerHTML = adminRules(D);
+  if(adminTab==='theme') body.innerHTML = adminTheme(D);
 }
 
 /* ---- Subjects admin ---- */
@@ -394,6 +395,42 @@ async function adminAddGuideline(){
 async function adminDeleteGuideline(id){
   await dbDeleteGuideline(id);
   await refreshAdminData();
+  renderAdmin();
+}
+
+/* ---- Theme admin ---- */
+function adminTheme(D){
+  return `
+    <div class="card">
+      <h3>Colors for ${D.fullName}</h3>
+      <p style="color:var(--ink-soft);font-size:12.5px;">These apply site-wide whenever someone is viewing this school. Changes save immediately and preview here too.</p>
+      <div class="two-col" style="margin-top:16px;max-width:320px;">
+        <div>
+          <label>Accent color</label>
+          <input id="th_accent" type="color" value="${D.accentColor}" style="height:44px;">
+        </div>
+        <div>
+          <label>Background color</label>
+          <input id="th_bg" type="color" value="${D.bgColor}" style="height:44px;">
+        </div>
+      </div>
+      <button class="btn" style="margin-top:18px;" onclick="adminSaveTheme()">Save colors</button>
+      <button class="btn ghost" style="margin-top:18px;" onclick="adminResetTheme()">Reset to default</button>
+    </div>
+  `;
+}
+async function adminSaveTheme(){
+  const accent = document.getElementById('th_accent').value;
+  const bg = document.getElementById('th_bg').value;
+  await dbSaveTheme(adminSchool, accent, bg);
+  await refreshAdminData();
+  applyTheme(adminSchool);
+  renderAdmin();
+}
+async function adminResetTheme(){
+  await dbSaveTheme(adminSchool, '#2F6F5E', '#F6F5F0');
+  await refreshAdminData();
+  applyTheme(adminSchool);
   renderAdmin();
 }
 

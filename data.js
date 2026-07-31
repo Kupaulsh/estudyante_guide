@@ -29,6 +29,8 @@ async function loadSchoolData(schoolId){
 
   return {
     fullName: schoolRes.data?.full_name || schoolId.toUpperCase(),
+    accentColor: schoolRes.data?.accent_color || '#2F6F5E',
+    bgColor: schoolRes.data?.bg_color || '#F6F5F0',
     subjects: (subjectsRes.data || []).map(s => ({
       id: s.id, code: s.code, name: s.name, professor: s.professor, room: s.room,
       day: s.day, time: s.time, color: s.color,
@@ -48,6 +50,14 @@ async function loadSchoolData(schoolId){
       guidelines: (guidelinesRes.data || []).map(g => ({id:g.id, title:g.title, body:g.body}))
     }
   };
+}
+
+/* ---- Theme (per-school accent + background color) ---- */
+async function dbSaveTheme(schoolId, accentColor, bgColor){
+  const {error} = await supabase.from('schools').update({
+    accent_color: accentColor, bg_color: bgColor
+  }).eq('id', schoolId);
+  if(error) alert('Could not save theme: '+error.message);
 }
 
 /* ---- Subjects ---- */

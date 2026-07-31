@@ -23,16 +23,48 @@ function logoFallback(img, name){
   }
 }
 
+function setSchoolDotLogo(school){
+  const dot = document.getElementById('topSchoolDot');
+  dot.style.background = 'transparent';
+  dot.innerHTML = '';
+  const img = document.createElement('img');
+  img.alt = school.toUpperCase() + ' logo';
+  img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;';
+  img.src = school + '-logo.png';
+  img.onerror = function(){
+    if(!img.dataset.triedJpg){
+      img.dataset.triedJpg = '1';
+      img.src = school + '-logo.jpg';
+    } else {
+      dot.style.background = 'var(--accent)';
+      dot.textContent = school.toUpperCase();
+    }
+  };
+  dot.appendChild(img);
+}
+
+function applyTheme(school){
+  const d = DATA[school];
+  if(!d) return;
+  document.documentElement.style.setProperty('--accent', d.accentColor || '#2F6F5E');
+  document.documentElement.style.setProperty('--bg', d.bgColor || '#F6F5F0');
+}
+function resetTheme(){
+  document.documentElement.style.removeProperty('--accent');
+  document.documentElement.style.removeProperty('--bg');
+}
+
 async function enterApp(school){
   currentSchool = school;
   document.getElementById('landing').style.display='none';
   document.getElementById('app').classList.add('active');
-  document.getElementById('topSchoolDot').textContent = school.toUpperCase();
+  setSchoolDotLogo(school);
   document.getElementById('topSchoolName').innerHTML = 'Loading… <span style="color:var(--ink-soft);font-weight:400;font-size:12px;">▾</span>';
   document.getElementById('pageContent').innerHTML = `<p style="color:var(--ink-soft);">Loading ${school.toUpperCase()}…</p>`;
 
   DATA[school] = await loadSchoolData(school);
 
+  applyTheme(school);
   document.getElementById('topSchoolName').innerHTML = S().fullName + ' <span style="color:var(--ink-soft);font-weight:400;font-size:12px;">▾</span>';
   buildGearItems();
   document.getElementById('gearNav').style.display='block';
@@ -41,11 +73,13 @@ async function enterApp(school){
 async function refreshCurrentSchool(){
   if(!currentSchool) return;
   DATA[currentSchool] = await loadSchoolData(currentSchool);
+  applyTheme(currentSchool);
 }
 function goLanding(){
   document.getElementById('app').classList.remove('active');
   document.getElementById('landing').style.display='flex';
   document.getElementById('gearNav').style.display='none';
+  resetTheme();
   closeGear();
 }
 function openSchoolMenu(){
