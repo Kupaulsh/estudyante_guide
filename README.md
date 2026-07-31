@@ -1,16 +1,16 @@
-# Student Helper
+# Gabay Estudyante
 
 A calendar / schedule / subjects / activities / reviewers site for PCCM and TUP, backed by Supabase. Content is shared across every visitor and device; only admins (Google accounts on an allowlist) can edit it.
 
 ## File structure
 ```
 index.html          — page shell
-css/style.css        — all styling
-js/supabase-client.js — your Supabase project keys go here
-js/data.js            — all reads/writes to Supabase
-js/app.js             — public-facing pages (calendar, subjects, reviewers, etc.)
-js/admin.js           — Google sign-in + admin CRUD panel
-sql/schema.sql         — run once in Supabase to create everything
+style.css            — all styling
+supabase-client.js   — your Supabase project keys go here
+data.js              — all reads/writes to Supabase
+app.js               — public-facing pages (calendar, subjects, reviewers, etc.)
+admin.js             — Google sign-in + admin CRUD panel
+schema.sql           — run once in Supabase to create everything
 pccm-logo.png / tup-logo.png — add these yourself (see below)
 ```
 
@@ -20,7 +20,7 @@ pccm-logo.png / tup-logo.png — add these yourself (see below)
 
 ## 2. Run the schema
 1. In your project, open **SQL Editor → New query**.
-2. Open `sql/schema.sql` from this repo, paste the whole thing in.
+2. Open `schema.sql` from this repo, paste the whole thing in.
 3. **Before running**, find this line near the bottom and replace the email with your real Google account email:
    ```sql
    insert into admins (email) values ('YOUR_EMAIL@gmail.com')
@@ -49,7 +49,7 @@ This needs a Google OAuth client — Supabase can't create one for you, but it's
 ## 4. Connect the app to your project
 1. In Supabase: **Settings → API**.
 2. Copy the **Project URL** and the **anon public** key.
-3. Open `js/supabase-client.js` in this repo and paste them in:
+3. Open `supabase-client.js` in this repo and paste them in:
    ```js
    const SUPABASE_URL = 'https://xxxxxxxx.supabase.co';
    const SUPABASE_ANON_KEY = 'eyJhbGciOi...';
