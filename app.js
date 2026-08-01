@@ -144,9 +144,6 @@ function closeGear(){
 function goPage(id){
   currentPage = id;
   document.querySelectorAll('.gear-item').forEach(el=>el.classList.toggle('active', el.id==='gear-'+id));
-  const meta = id==='hub' ? HUB_META : PAGES.find(p=>p.id===id);
-  document.getElementById('pageTitle').textContent = meta.title;
-  document.getElementById('pageSub').textContent = meta.sub;
   if(id==='hub'){ renderHub(); window.scrollTo({top:0,behavior:'smooth'}); return; }
   const renderers = {calendar:renderCalendar, schedule:renderSchedule, subjects:renderSubjects,
     activities:renderActivities, reviewers:renderReviewers, howto:renderHowTo, rules:renderRules};
@@ -182,13 +179,39 @@ function closeModal(){ document.getElementById('modalScrim').classList.remove('s
 /* =========================================================
    CALENDAR
 ========================================================= */
+function getUpcomingDue(limit){
+  const today = todayISO();
+  const items = [];
+  S().activities.forEach(a=>{
+    if(a.due && a.due >= today){
+      const subj = S().subjects.find(s=>s.id===a.subjectId);
+      items.push({date:a.due, title:a.title, type:a.type==='Project'?'project':'due', kind:'activity', id:a.id, subj: subj?subj.name:''});
+    }
+  });
+  S().events.forEach(e=>{
+    if((e.type==='due'||e.type==='project') && e.date >= today){
+      const subj = S().subjects.find(s=>s.id===e.subjectId);
+      items.push({date:e.date, title:e.title, type:e.type, kind:'event', id:e.date, subj: subj?subj.name:''});
+    }
+  });
+  items.sort((a,b)=>a.date.localeCompare(b.date));
+  return items.slice(0, limit||6);
+}
+function daysFromToday(iso){
+  const d1 = new Date(todayISO()+'T00:00'), d2 = new Date(iso+'T00:00');
+  const diff = Math.round((d2-d1)/86400000);
+  if(diff===0) return 'Today';
+  if(diff===1) return 'Tomorrow';
+  return `In ${diff} days`;
+}
 function renderCalendar(){
   const y = calCursor.getFullYear(), m = calCursor.getMonth();
   const first = new Date(y,m,1);
   const startDow = first.getDay();
   const daysInMonth = new Date(y,m+1,0).getDate();
   const monthName = calCursor.toLocaleString('default',{month:'long'});
-  let html = `<div class="card">
+  let html = `<div class="cal-layout">
+  <div class="card">
     <div class="cal-head">
       <button onclick="shiftMonth(-1)">‹</button>
       <h3>${monthName} ${y}</h3>
@@ -208,8 +231,30 @@ function renderCalendar(){
     html += `<div class="cal-cell ${isToday?'today':''}" onclick="openDay('${iso}')">${d}<div class="cal-dots">${dots}</div></div>`;
   }
   html += `</div></div>
-  <div class="section-label">Legend</div>
-  <span class="tag">● Event</span><span class="tag due">● Due</span><span class="tag project">● Project</span>`;
+
+  <div class="cal-sidebar">
+    <div class="cal-legend">
+      <span class="tag">● Event</span><span class="tag due">● Due</span><span class="tag project">● Project</span>
+    </div>
+    <div class="section-label" style="margin-top:18px;">Coming Up</div>
+    <div class="hub-list">`;
+  const upcoming = getUpcomingDue(6);
+  if(upcoming.length===0){
+    html += `<p style="color:var(--ink-soft);font-size:13px;">Nothing due soon.</p>`;
+  } else {
+    upcoming.forEach(u=>{
+      html += `<div class="hub-row" onclick="${u.kind==='activity'?`openActivity('${u.id}')`:`openDay('${u.id}')`}">
+        <div class="hub-text">
+          <h4>${u.title}</h4>
+          <p>${u.subj?u.subj+' · ':''}${daysFromToday(u.date)} · ${u.date}</p>
+        </div>
+        <span class="tag ${u.type}" style="margin:0;">${u.type}</span>
+      </div>`;
+    });
+  }
+  html += `</div>
+  </div>
+  </div>`;
   document.getElementById('pageContent').innerHTML = html;
 }
 function shiftMonth(n){ calCursor.setMonth(calCursor.getMonth()+n); renderCalendar(); }
@@ -223,7 +268,7 @@ function openDay(iso){
       <span class="tag ${e.type!=='event'?e.type:''}">${e.type}</span>
       <h4 style="margin-top:8px;">${e.title}</h4>
       ${subj?`<p style="font-size:12px;color:var(--ink-soft);margin:0 0 4px;">${subj.name}</p>`:''}
-      <p>${e.desc||''}</p>
+      <p>${nl2br(e.desc)}</p>
     </div>`;
   });
   openModal(html);
@@ -266,7 +311,7 @@ function renderSchedule(){
   let lastDay = undefined;
   rows.forEach(r=>{
     if(r.day !== lastDay){ html += `<div class="section-label">${r.day||'Unscheduled'}</div>`; lastDay = r.day; }
-    html += `<div class="sched-item">
+    html += `<div class="sched-item" onclick="openSubject('${r.subject.id}')" style="cursor:pointer;">
       <div class="sched-swatch" style="background:${r.subject.color}"></div>
       <div class="sched-time">${r.time||'TBA'}</div>
       <div class="sched-body">
@@ -363,7 +408,7 @@ function openActivity(id){
   openModal(`<h3>${a.title}</h3>
     <p style="color:var(--ink-soft);font-size:13px;">${subj?subj.name:''} · ${a.type}</p>
     <p><b>Starts:</b> ${a.start||'TBA'} &nbsp; <b>Due:</b> ${a.due||'TBA'}</p>
-    <p>${a.instructions||''}</p>
+    <p>${nl2br(a.instructions)}</p>
     <div>${(a.tags||[]).map(t=>`<span class="tag">#${t}</span>`).join('')}</div>`);
 }
 
@@ -619,7 +664,7 @@ function renderHowTo(){
   S().faqs.forEach((f,i)=>{
     html += `<div class="faq-item" id="faq-${i}">
       <div class="faq-q" onclick="toggleFaq(${i})"><span>${f.q}</span><span>+</span></div>
-      <div class="faq-a">${f.a}</div>
+      <div class="faq-a">${nl2br(f.a)}</div>
     </div>`;
   });
   if(S().faqs.length===0) html = `<p style="color:var(--ink-soft);">No FAQs yet.</p>`;
@@ -631,22 +676,43 @@ function toggleFaq(i){ document.getElementById('faq-'+i).classList.toggle('open'
    RULES AND OTHERS
 ========================================================= */
 function nl2br(s){ return (s||'').replace(/\n/g, '<br>'); }
+function rulesCard(icon, title, innerHtml){
+  return `<div class="rules-card">
+    <div class="rules-card-head">
+      <div class="rules-card-icon"><svg viewBox="0 0 24 24">${icon}</svg></div>
+      <h3>${title}</h3>
+    </div>
+    ${innerHtml}
+  </div>`;
+}
+const RULES_ICONS = {
+  vision: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+  mission: '<path d="M12 2v20M2 12h20" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+  preamble: '<path d="M6 2h9l5 5v15H6z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 12h6M9 16h6M9 8h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  values: '<path d="M12 2l2.9 6.3 6.9.9-5 4.8 1.2 6.9L12 17.6 5.9 20.9l1.2-6.9-5-4.8 6.9-.9z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  more: '<path d="M4 4h16v16H4z M4 9h16 M9 4v16" fill="none" stroke="currentColor" stroke-width="1.8"/>'
+};
+
 function renderRules(){
   const r = S().rules;
-  let html = `
-    <div class="rules-block"><h3>Vision</h3><p>${nl2br(r.vision)||'Not set yet.'}</p></div>
-    <div class="rules-block"><h3>Mission</h3><p>${nl2br(r.mission)||'Not set yet.'}</p></div>
-    <div class="rules-block"><h3>Preamble</h3><p>${nl2br(r.preamble)||'Not set yet.'}</p></div>
-    <div class="rules-block"><h3>Core Values</h3><div class="core-values">${r.coreValues.map(v=>`<div>${v}</div>`).join('') || '<p style="color:var(--ink-soft);">Not set yet.</p>'}</div></div>
-    <div class="section-label">More Sections</div>`;
-  if(r.guidelines.length===0) html += `<p style="color:var(--ink-soft);">Not set yet.</p>`;
-  r.guidelines.forEach(g=>{
-    if(g.body && g.body.includes('$')){
-      const items = g.body.split('$').map(v=>v.trim()).filter(Boolean);
-      html += `<div class="rules-block"><h3>${g.title}</h3><div class="core-values">${items.map(v=>`<div>${v}</div>`).join('')}</div></div>`;
-    } else {
-      html += `<div class="rules-block"><h3>${g.title}</h3><p>${nl2br(g.body)}</p></div>`;
-    }
-  });
+  let html = rulesCard(RULES_ICONS.vision, 'Vision', `<p>${nl2br(r.vision)||'Not set yet.'}</p>`);
+  html += rulesCard(RULES_ICONS.mission, 'Mission', `<p>${nl2br(r.mission)||'Not set yet.'}</p>`);
+  html += rulesCard(RULES_ICONS.preamble, 'Preamble', `<p>${nl2br(r.preamble)||'Not set yet.'}</p>`);
+  html += rulesCard(RULES_ICONS.values, 'Core Values', `<div class="core-values">${r.coreValues.map(v=>`<div>${v}</div>`).join('') || '<p style="color:var(--ink-soft);">Not set yet.</p>'}</div>`);
+
+  if(r.guidelines.length===0){
+    html += rulesCard(RULES_ICONS.more, 'More Sections', `<p style="color:var(--ink-soft);">Not set yet.</p>`);
+  } else {
+    r.guidelines.forEach(g=>{
+      let inner;
+      if(g.body && g.body.includes('$')){
+        const items = g.body.split('$').map(v=>v.trim()).filter(Boolean);
+        inner = `<div class="core-values">${items.map(v=>`<div>${v}</div>`).join('')}</div>`;
+      } else {
+        inner = `<p>${nl2br(g.body)}</p>`;
+      }
+      html += rulesCard(RULES_ICONS.more, g.title, inner);
+    });
+  }
   document.getElementById('pageContent').innerHTML = html;
 }

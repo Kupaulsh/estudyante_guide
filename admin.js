@@ -313,7 +313,12 @@ function adminEvents(D){
     <button class="btn" onclick="adminAddEvent()">+ Add to calendar</button>
   </div><div class="section-label">All events</div>`;
   D.events.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
-    html += `<div class="admin-list-item"><div class="info"><b>${e.title}</b><br><small>${e.date} · ${e.type}</small></div><button class="btn sm danger" onclick="adminDeleteEvent('${e.id}')">Delete</button></div>`;
+    const auto = e.sourceActivityId ? ' <small style="color:var(--ink-soft);">(auto, from an Activity)</small>' : '';
+    html += `<div class="admin-list-item"><div class="info"><b>${e.title}</b>${auto}<br><small>${e.date} · ${e.type}</small></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn sm ghost" onclick="adminEditEvent('${e.id}')">Edit</button>
+        <button class="btn sm danger" onclick="adminDeleteEvent('${e.id}')">Delete</button>
+      </div></div>`;
   });
   return html;
 }
@@ -327,6 +332,41 @@ async function adminAddEvent(){
   });
   await refreshAdminData();
   renderAdmin();
+}
+function adminEditEvent(id){
+  const D = DATA[adminSchool];
+  const e = D.events.find(x=>x.id===id);
+  const html = `<h3>Edit event</h3>
+  <div class="form-grid">
+    <input id="ev_title_edit" value="${escAttr(e.title)}" placeholder="Title">
+    <div class="two-col">
+      <input id="ev_date_edit" type="date" value="${e.date}">
+      <select id="ev_type_edit">
+        <option value="event" ${e.type==='event'?'selected':''}>Event</option>
+        <option value="due" ${e.type==='due'?'selected':''}>Due</option>
+        <option value="project" ${e.type==='project'?'selected':''}>Project</option>
+      </select>
+    </div>
+    <select id="ev_subject_edit">
+      <option value="">General (not tied to a subject)</option>
+      ${D.subjects.map(s=>`<option value="${s.id}" ${s.id===e.subjectId?'selected':''}>${s.name}</option>`).join('')}
+    </select>
+    <textarea id="ev_desc_edit" placeholder="Description" rows="2">${e.desc||''}</textarea>
+    <button class="btn" onclick="adminSaveEvent('${id}')">Save</button>
+  </div>`;
+  openModal(html);
+}
+async function adminSaveEvent(id){
+  await dbUpdateEvent(id, {
+    title: document.getElementById('ev_title_edit').value,
+    date: document.getElementById('ev_date_edit').value,
+    type: document.getElementById('ev_type_edit').value,
+    subject_id: document.getElementById('ev_subject_edit').value || null,
+    description: document.getElementById('ev_desc_edit').value
+  });
+  await refreshAdminData();
+  renderAdmin();
+  closeModal();
 }
 async function adminDeleteEvent(id){
   await dbDeleteEvent(id);
@@ -347,25 +387,73 @@ function adminActivities(D){
     <textarea id="ac_instr" placeholder="Instructions" rows="2"></textarea>
     <input id="ac_tags" placeholder="Tags, separated by $">
     <button class="btn" onclick="adminAddActivity()">+ Add activity</button>
-  </div><div class="section-label">All activities</div>`;
+  </div>
+  <p style="color:var(--ink-soft);font-size:12.5px;margin-top:-6px;">Start and due dates are automatically added to the Calendar too — no need to add them twice.</p>
+  <div class="section-label">All activities</div>`;
   D.activities.forEach(a=>{
-    html += `<div class="admin-list-item"><div class="info"><b>${a.title}</b><br><small>${a.type} · due ${a.due}</small></div><button class="btn sm danger" onclick="adminDeleteActivity('${a.id}')">Delete</button></div>`;
+    html += `<div class="admin-list-item"><div class="info"><b>${a.title}</b><br><small>${a.type} · starts ${a.start||'TBA'} · due ${a.due||'TBA'}</small></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn sm ghost" onclick="adminEditActivity('${a.id}')">Edit</button>
+        <button class="btn sm danger" onclick="adminDeleteActivity('${a.id}')">Delete</button>
+      </div></div>`;
   });
   return html;
 }
 async function adminAddActivity(){
   const title = document.getElementById('ac_title').value.trim();
   if(!title){alert('Title required.');return;}
-  await dbAddActivity(adminSchool, {
-    title, subject_id: document.getElementById('ac_subject').value || null,
-    type: document.getElementById('ac_type').value,
-    start_date: document.getElementById('ac_start').value,
-    due_date: document.getElementById('ac_due').value,
+  const subjectId = document.getElementById('ac_subject').value || null;
+  const type = document.getElementById('ac_type').value;
+  const start = document.getElementById('ac_start').value;
+  const due = document.getElementById('ac_due').value;
+  const newId = await dbAddActivity(adminSchool, {
+    title, subject_id: subjectId, type, start_date: start, due_date: due,
     instructions: document.getElementById('ac_instr').value,
     tags: document.getElementById('ac_tags').value.split('$').map(t=>t.trim()).filter(Boolean)
   });
+  if(newId) await dbSyncActivityCalendarEvents(adminSchool, newId, subjectId, title, type, start, due);
   await refreshAdminData();
   renderAdmin();
+}
+function adminEditActivity(id){
+  const D = DATA[adminSchool];
+  const a = D.activities.find(x=>x.id===id);
+  const html = `<h3>Edit activity</h3>
+  <div class="form-grid">
+    <input id="ac_title_edit" value="${escAttr(a.title)}" placeholder="Title">
+    <select id="ac_subject_edit">
+      <option value="">General (not tied to a subject)</option>
+      ${D.subjects.map(s=>`<option value="${s.id}" ${s.id===a.subjectId?'selected':''}>${s.name}</option>`).join('')}
+    </select>
+    <select id="ac_type_edit">
+      ${['Assignment','Activity','Project'].map(t=>`<option ${t===a.type?'selected':''}>${t}</option>`).join('')}
+    </select>
+    <div class="two-col">
+      <div><label>Start</label><input id="ac_start_edit" type="date" value="${a.start||''}"></div>
+      <div><label>Due</label><input id="ac_due_edit" type="date" value="${a.due||''}"></div>
+    </div>
+    <textarea id="ac_instr_edit" placeholder="Instructions" rows="3">${a.instructions||''}</textarea>
+    <input id="ac_tags_edit" value="${escAttr((a.tags||[]).join(' $ '))}" placeholder="Tags, separated by $">
+    <button class="btn" onclick="adminSaveActivity('${id}')">Save</button>
+  </div>
+  <p style="color:var(--ink-soft);font-size:12.5px;">Saving updates the matching Calendar entries too.</p>`;
+  openModal(html);
+}
+async function adminSaveActivity(id){
+  const subjectId = document.getElementById('ac_subject_edit').value || null;
+  const title = document.getElementById('ac_title_edit').value;
+  const type = document.getElementById('ac_type_edit').value;
+  const start = document.getElementById('ac_start_edit').value;
+  const due = document.getElementById('ac_due_edit').value;
+  await dbUpdateActivity(id, {
+    title, subject_id: subjectId, type, start_date: start, due_date: due,
+    instructions: document.getElementById('ac_instr_edit').value,
+    tags: document.getElementById('ac_tags_edit').value.split('$').map(t=>t.trim()).filter(Boolean)
+  });
+  await dbSyncActivityCalendarEvents(adminSchool, id, subjectId, title, type, start, due);
+  await refreshAdminData();
+  renderAdmin();
+  closeModal();
 }
 async function adminDeleteActivity(id){
   await dbDeleteActivity(id);
@@ -381,7 +469,11 @@ function adminFaqs(D){
     <button class="btn" onclick="adminAddFaq()">+ Add FAQ</button>
   </div><div class="section-label">All FAQs</div>`;
   D.faqs.forEach((f)=>{
-    html += `<div class="admin-list-item"><div class="info"><b>${f.q}</b><br><small>${f.a}</small></div><button class="btn sm danger" onclick="adminDeleteFaq('${f.id}')">Delete</button></div>`;
+    html += `<div class="admin-list-item"><div class="info"><b>${f.q}</b><br><small>${f.a}</small></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn sm ghost" onclick="adminEditFaq('${f.id}')">Edit</button>
+        <button class="btn sm danger" onclick="adminDeleteFaq('${f.id}')">Delete</button>
+      </div></div>`;
   });
   return html;
 }
@@ -392,6 +484,25 @@ async function adminAddFaq(){
   await dbAddFaq(adminSchool, q, a);
   await refreshAdminData();
   renderAdmin();
+}
+function adminEditFaq(id){
+  const D = DATA[adminSchool];
+  const f = D.faqs.find(x=>x.id===id);
+  openModal(`<h3>Edit FAQ</h3>
+    <div class="form-grid">
+      <input id="fq_q_edit" value="${escAttr(f.q)}" placeholder="Question">
+      <textarea id="fq_a_edit" placeholder="Answer" rows="3">${f.a}</textarea>
+      <button class="btn" onclick="adminSaveFaq('${id}')">Save</button>
+    </div>`);
+}
+async function adminSaveFaq(id){
+  const q = document.getElementById('fq_q_edit').value.trim();
+  const a = document.getElementById('fq_a_edit').value.trim();
+  if(!q||!a){alert('Fill both fields.');return;}
+  await dbUpdateFaq(id, q, a);
+  await refreshAdminData();
+  renderAdmin();
+  closeModal();
 }
 async function adminDeleteFaq(id){
   await dbDeleteFaq(id);
@@ -415,7 +526,11 @@ function adminRules(D){
     html += `<p style="color:var(--ink-soft);font-size:12.5px;">None yet.</p>`;
   }
   r.guidelines.forEach((g)=>{
-    html += `<div class="admin-list-item"><div class="info"><b>${g.title}</b><br><small>${g.body}</small></div><button class="btn sm danger" onclick="adminDeleteGuideline('${g.id}')">Delete</button></div>`;
+    html += `<div class="admin-list-item"><div class="info"><b>${g.title}</b><br><small>${g.body}</small></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn sm ghost" onclick="adminEditGuideline('${g.id}')">Edit</button>
+        <button class="btn sm danger" onclick="adminDeleteGuideline('${g.id}')">Delete</button>
+      </div></div>`;
   });
   html += `<div class="form-grid">
     <input id="g_title" placeholder="Section title (e.g. University Hymn, Strategic Goals, Dress Code)">
@@ -441,6 +556,25 @@ async function adminAddGuideline(){
   await dbAddGuideline(adminSchool, title, body);
   await refreshAdminData();
   renderAdmin();
+}
+function adminEditGuideline(id){
+  const D = DATA[adminSchool];
+  const g = D.rules.guidelines.find(x=>x.id===id);
+  openModal(`<h3>Edit section</h3>
+    <div class="form-grid">
+      <input id="g_title_edit" value="${escAttr(g.title)}" placeholder="Section title">
+      <textarea id="g_body_edit" placeholder="Content" rows="4">${g.body}</textarea>
+      <button class="btn" onclick="adminSaveGuideline('${id}')">Save</button>
+    </div>`);
+}
+async function adminSaveGuideline(id){
+  const title = document.getElementById('g_title_edit').value.trim();
+  const body = document.getElementById('g_body_edit').value.trim();
+  if(!title||!body){alert('Fill both fields.');return;}
+  await dbUpdateGuideline(id, title, body);
+  await refreshAdminData();
+  renderAdmin();
+  closeModal();
 }
 async function adminDeleteGuideline(id){
   await dbDeleteGuideline(id);

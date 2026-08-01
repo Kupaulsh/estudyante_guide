@@ -39,7 +39,7 @@ async function loadSchoolData(schoolId){
       flashcards: (s.flashcards || []).map(f => ({id:f.id, q:f.question, a:f.answer})),
       quiz: (s.quiz_questions || []).map(q => ({id:q.id, q:q.question, choices:q.choices, answer:q.correct_index, difficulty:q.difficulty}))
     })),
-    events: (eventsRes.data || []).map(e => ({id:e.id, date:e.date, title:e.title, type:e.type, desc:e.description, subjectId:e.subject_id})),
+    events: (eventsRes.data || []).map(e => ({id:e.id, date:e.date, title:e.title, type:e.type, desc:e.description, subjectId:e.subject_id, sourceActivityId:e.source_activity_id})),
     activities: (activitiesRes.data || []).map(a => ({id:a.id, title:a.title, subjectId:a.subject_id, type:a.type, start:a.start_date, due:a.due_date, instructions:a.instructions, tags:a.tags || []})),
     faqs: (faqsRes.data || []).map(f => ({id:f.id, q:f.question, a:f.answer})),
     rules: {
@@ -126,6 +126,10 @@ async function dbAddEvent(schoolId, fields){
   const {error} = await supabase.from('events').insert({school_id: schoolId, ...fields});
   if(error) alert('Could not add event: '+error.message);
 }
+async function dbUpdateEvent(id, fields){
+  const {error} = await supabase.from('events').update(fields).eq('id', id);
+  if(error) alert('Could not update event: '+error.message);
+}
 async function dbDeleteEvent(id){
   const {error} = await supabase.from('events').delete().eq('id', id);
   if(error) alert('Could not delete event: '+error.message);
@@ -133,18 +137,44 @@ async function dbDeleteEvent(id){
 
 /* ---- Activities ---- */
 async function dbAddActivity(schoolId, fields){
-  const {error} = await supabase.from('activities').insert({school_id: schoolId, ...fields});
-  if(error) alert('Could not add activity: '+error.message);
+  const {data, error} = await supabase.from('activities').insert({school_id: schoolId, ...fields}).select().single();
+  if(error){ alert('Could not add activity: '+error.message); return null; }
+  return data.id;
+}
+async function dbUpdateActivity(id, fields){
+  const {error} = await supabase.from('activities').update(fields).eq('id', id);
+  if(error) alert('Could not update activity: '+error.message);
 }
 async function dbDeleteActivity(id){
   const {error} = await supabase.from('activities').delete().eq('id', id);
   if(error) alert('Could not delete activity: '+error.message);
 }
 
+// Keeps the calendar in sync with an activity's start/due dates.
+// Wipes any calendar events this activity previously generated, then recreates them.
+async function dbSyncActivityCalendarEvents(schoolId, activityId, subjectId, title, type, start, due){
+  await supabase.from('events').delete().eq('source_activity_id', activityId);
+  const rows = [];
+  if(start){
+    rows.push({school_id: schoolId, subject_id: subjectId || null, date: start, title: `${title} — Starts`, type: 'event', description: '', source_activity_id: activityId});
+  }
+  if(due){
+    rows.push({school_id: schoolId, subject_id: subjectId || null, date: due, title: `${title} — Due`, type: type==='Project' ? 'project' : 'due', description: '', source_activity_id: activityId});
+  }
+  if(rows.length){
+    const {error} = await supabase.from('events').insert(rows);
+    if(error) console.error('Could not sync calendar events for activity:', error);
+  }
+}
+
 /* ---- FAQs ---- */
 async function dbAddFaq(schoolId, question, answer){
   const {error} = await supabase.from('faqs').insert({school_id: schoolId, question, answer});
   if(error) alert('Could not add FAQ: '+error.message);
+}
+async function dbUpdateFaq(id, question, answer){
+  const {error} = await supabase.from('faqs').update({question, answer}).eq('id', id);
+  if(error) alert('Could not update FAQ: '+error.message);
 }
 async function dbDeleteFaq(id){
   const {error} = await supabase.from('faqs').delete().eq('id', id);
@@ -159,6 +189,10 @@ async function dbSaveRules(schoolId, fields){
 async function dbAddGuideline(schoolId, title, body){
   const {error} = await supabase.from('guidelines').insert({school_id: schoolId, title, body});
   if(error) alert('Could not add guideline: '+error.message);
+}
+async function dbUpdateGuideline(id, title, body){
+  const {error} = await supabase.from('guidelines').update({title, body}).eq('id', id);
+  if(error) alert('Could not update guideline: '+error.message);
 }
 async function dbDeleteGuideline(id){
   const {error} = await supabase.from('guidelines').delete().eq('id', id);
