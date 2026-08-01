@@ -332,7 +332,7 @@ function adminEvents(D){
       <input id="ev_date" type="date" value="${todayISO()}">
       <select id="ev_type"><option value="event">Event</option><option value="due">Due</option><option value="project">Project</option></select>
     </div>
-    <select id="ev_subject">${D.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
+    <select id="ev_subject"><option value="">General (not tied to a subject)</option>${D.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
     <textarea id="ev_desc" placeholder="Description" rows="2"></textarea>
     <button class="btn" onclick="adminAddEvent()">+ Add to calendar</button>
   </div><div class="section-label">All events</div>`;
@@ -362,7 +362,7 @@ async function adminDeleteEvent(id){
 function adminActivities(D){
   let html = `<div class="form-grid">
     <input id="ac_title" placeholder="Title">
-    <select id="ac_subject">${D.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
+    <select id="ac_subject"><option value="">General (not tied to a subject)</option>${D.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
     <select id="ac_type"><option>Assignment</option><option>Activity</option><option>Project</option></select>
     <div class="two-col">
       <div><label>Start</label><input id="ac_start" type="date" value="${todayISO()}"></div>
