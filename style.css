@@ -357,7 +357,7 @@ select, input, textarea{
 .rules-block{margin-bottom:20px;}
 .rules-block h3{font-size:15px;color:var(--accent);}
 .core-values{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
-.core-values div{background:var(--accent-soft);color:var(--accent);border-radius:12px;padding:12px;font-size:13px;font-weight:600;text-align:center;}
+.core-values div{background:var(--accent-soft);color:var(--ink);border-radius:12px;padding:12px;font-size:13px;font-weight:600;text-align:center;}
 
 /* ---------- ADMIN ---------- */
 #adminGate{

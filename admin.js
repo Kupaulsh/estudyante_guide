@@ -285,7 +285,7 @@ function adminEditReviewer(id){
   <div id="quizList">${s.quiz.map((q)=>`<div class="admin-list-item"><div class="info"><b>${q.q}</b><br><small>Choices: ${q.choices.join(' | ')} — Correct: ${q.choices[q.answer]} — ${q.difficulty}</small></div><button class="btn sm danger" onclick="adminDeleteQuiz('${id}','${q.id}')">Delete</button></div>`).join('')}</div>
   <div class="form-grid">
     <input id="qz_q" placeholder="Question">
-    <input id="qz_choices" placeholder="Choices, comma-separated (e.g. A, B, C, D)">
+    <input id="qz_choices" placeholder="Choices, separated by $ (e.g. A $ B $ C $ D)">
     <input id="qz_answer" placeholder="Correct answer (must match one choice exactly)">
     <select id="qz_diff">
       <option>Easy</option><option>Average</option><option>Hard</option><option>Very Hard</option>
@@ -309,7 +309,7 @@ async function adminDeleteFlash(subjId, flashId){
 }
 async function adminAddQuiz(subjId){
   const q = document.getElementById('qz_q').value.trim();
-  const choices = document.getElementById('qz_choices').value.split(',').map(c=>c.trim()).filter(Boolean);
+  const choices = document.getElementById('qz_choices').value.split('$').map(c=>c.trim()).filter(Boolean);
   const answerText = document.getElementById('qz_answer').value.trim();
   const diff = document.getElementById('qz_diff').value;
   const answerIdx = choices.indexOf(answerText);
@@ -369,7 +369,7 @@ function adminActivities(D){
       <div><label>Due</label><input id="ac_due" type="date" value="${todayISO()}"></div>
     </div>
     <textarea id="ac_instr" placeholder="Instructions" rows="2"></textarea>
-    <input id="ac_tags" placeholder="Tags, comma-separated">
+    <input id="ac_tags" placeholder="Tags, separated by $">
     <button class="btn" onclick="adminAddActivity()">+ Add activity</button>
   </div><div class="section-label">All activities</div>`;
   D.activities.forEach(a=>{
@@ -386,7 +386,7 @@ async function adminAddActivity(){
     start_date: document.getElementById('ac_start').value,
     due_date: document.getElementById('ac_due').value,
     instructions: document.getElementById('ac_instr').value,
-    tags: document.getElementById('ac_tags').value.split(',').map(t=>t.trim()).filter(Boolean)
+    tags: document.getElementById('ac_tags').value.split('$').map(t=>t.trim()).filter(Boolean)
   });
   await refreshAdminData();
   renderAdmin();
@@ -430,7 +430,7 @@ function adminRules(D){
     <div><label>Vision</label><textarea id="r_vision" rows="2">${r.vision}</textarea></div>
     <div><label>Mission</label><textarea id="r_mission" rows="2">${r.mission}</textarea></div>
     <div><label>Preamble</label><textarea id="r_preamble" rows="2">${r.preamble}</textarea></div>
-    <div><label>Core Values (comma-separated)</label><input id="r_values" value="${escAttr(r.coreValues.join(', '))}"></div>
+    <div><label>Core Values (separated by $)</label><input id="r_values" value="${escAttr(r.coreValues.join(' $ '))}"></div>
     <button class="btn" onclick="adminSaveRules()">Save</button>
   </div>
   <div class="section-label">More sections</div>
@@ -443,7 +443,7 @@ function adminRules(D){
   });
   html += `<div class="form-grid">
     <input id="g_title" placeholder="Section title (e.g. University Hymn, Strategic Goals, Dress Code)">
-    <textarea id="g_body" placeholder="Content for this section" rows="3"></textarea>
+    <textarea id="g_body" placeholder="Content for this section — or separate short items with $ to display them as chips, like Core Values (e.g. Item 1 $ Item 2 $ Item 3)" rows="3"></textarea>
     <button class="btn ghost" onclick="adminAddGuideline()">+ Add section</button>
   </div>`;
   return html;
@@ -453,7 +453,7 @@ async function adminSaveRules(){
     vision: document.getElementById('r_vision').value,
     mission: document.getElementById('r_mission').value,
     preamble: document.getElementById('r_preamble').value,
-    core_values: document.getElementById('r_values').value.split(',').map(v=>v.trim()).filter(Boolean)
+    core_values: document.getElementById('r_values').value.split('$').map(v=>v.trim()).filter(Boolean)
   });
   await refreshAdminData();
   renderAdmin();

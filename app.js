@@ -641,7 +641,12 @@ function renderRules(){
     <div class="section-label">More Sections</div>`;
   if(r.guidelines.length===0) html += `<p style="color:var(--ink-soft);">Not set yet.</p>`;
   r.guidelines.forEach(g=>{
-    html += `<div class="rules-block"><h3>${g.title}</h3><p>${nl2br(g.body)}</p></div>`;
+    if(g.body && g.body.includes('$')){
+      const items = g.body.split('$').map(v=>v.trim()).filter(Boolean);
+      html += `<div class="rules-block"><h3>${g.title}</h3><div class="core-values">${items.map(v=>`<div>${v}</div>`).join('')}</div></div>`;
+    } else {
+      html += `<div class="rules-block"><h3>${g.title}</h3><p>${nl2br(g.body)}</p></div>`;
+    }
   });
   document.getElementById('pageContent').innerHTML = html;
 }
