@@ -168,8 +168,10 @@ function renderHub(){
 /* =========================================================
    MODAL
 ========================================================= */
-function openModal(html){
-  document.getElementById('modalBox').innerHTML = `<button class="modal-close" onclick="closeModal()">✕</button>${html}`;
+function openModal(html, accentColor){
+  const box = document.getElementById('modalBox');
+  box.innerHTML = `<button class="modal-close" onclick="closeModal()">✕</button>${html}`;
+  box.style.borderTop = accentColor ? `5px solid ${accentColor}` : '';
   document.getElementById('modalScrim').classList.add('show');
 }
 function closeModal(){ document.getElementById('modalScrim').classList.remove('show'); }
@@ -321,7 +323,8 @@ function renderSchedule(){
   let lastDay = undefined;
   rows.forEach(r=>{
     if(r.day !== lastDay){ html += `<div class="section-label">${r.day||'Unscheduled'}</div>`; lastDay = r.day; }
-    html += `<div class="sched-item" onclick="openSubject('${r.subject.id}')" style="cursor:pointer;border-color:${r.subject.color};">
+    html += `<div class="sched-item" onclick="openSubject('${r.subject.id}')" style="cursor:pointer;">
+      <div class="sched-swatch" style="background:${r.subject.color}"></div>
       <div class="sched-time">${r.time||'TBA'}</div>
       <div class="sched-body">
         <h4>${r.subject.name}</h4>
@@ -367,7 +370,7 @@ function openSubject(id){
   html += `<div class="section-label">Materials</div>`;
   if(s.materials.length===0) html += `<p style="font-size:13px;color:var(--ink-soft);">No materials uploaded yet.</p>`;
   s.materials.forEach(f=> html += fileRow(f));
-  openModal(html);
+  openModal(html, s.color);
 }
 function fileRow(f, subLabel){
   return `<a class="file-row" href="${f.url}" target="_blank" rel="noopener">
