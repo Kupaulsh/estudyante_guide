@@ -100,10 +100,8 @@ function openSchoolMenu(){
 const PAGES = [
   {id:'calendar', label:'Calendar', title:'Calendar', sub:'Tap a date to see events, due dates, and projects.',
     icon:'<path d="M7 2v2M17 2v2M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="1.8"/>'},
-  {id:'schedule', label:'Schedule', title:'Schedule', sub:'Your full class list — professor, room, and time slot.',
+  {id:'schedule', label:'Schedule', title:'Schedule', sub:'Your full class list — tap a class for its syllabus and materials.',
     icon:'<path d="M4 4h16v16H4z M4 9h16 M9 4v16" fill="none" stroke="currentColor" stroke-width="1.8"/>'},
-  {id:'subjects', label:'Subjects', title:'Subjects', sub:'Tap a subject to see its syllabus and materials.',
-    icon:'<path d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2zm0 0h14" fill="none" stroke="currentColor" stroke-width="1.8"/>'},
   {id:'activities', label:'Activities', title:'Activities', sub:'Assignments, activities, and projects across subjects.',
     icon:'<path d="M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none" stroke="currentColor" stroke-width="1.8"/>'},
   {id:'reviewers', label:'Reviewers', title:'Reviewers', sub:'Flashcards, mock quizzes, and readable PDFs per subject.',
@@ -145,7 +143,7 @@ function goPage(id){
   currentPage = id;
   document.querySelectorAll('.gear-item').forEach(el=>el.classList.toggle('active', el.id==='gear-'+id));
   if(id==='hub'){ renderHub(); window.scrollTo({top:0,behavior:'smooth'}); return; }
-  const renderers = {calendar:renderCalendar, schedule:renderSchedule, subjects:renderSubjects,
+  const renderers = {calendar:renderCalendar, schedule:renderSchedule,
     activities:renderActivities, reviewers:renderReviewers, howto:renderHowTo, rules:renderRules};
   renderers[id]();
   window.scrollTo({top:0,behavior:'smooth'});
@@ -317,6 +315,7 @@ function renderSchedule(){
       <div class="sched-body">
         <h4>${r.subject.name}</h4>
         <p>${r.professor||'Professor TBA'} · Room ${r.room||'TBA'}</p>
+        <p>${r.subject.materials.length} material${r.subject.materials.length!==1?'s':''} · ${r.subject.syllabus.length} syllabus file${r.subject.syllabus.length!==1?'s':''}</p>
       </div>
     </div>`;
   });

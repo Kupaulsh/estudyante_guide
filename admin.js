@@ -389,7 +389,8 @@ function adminActivities(D){
     <button class="btn" onclick="adminAddActivity()">+ Add activity</button>
   </div>
   <p style="color:var(--ink-soft);font-size:12.5px;margin-top:-6px;">Start and due dates are automatically added to the Calendar too — no need to add them twice.</p>
-  <div class="section-label">All activities</div>`;
+  <div class="section-label">All activities</div>
+  ${D.activities.length ? `<button class="btn ghost sm" onclick="adminResyncAllActivities()" style="margin-bottom:12px;">↻ Sync all to Calendar</button><p style="color:var(--ink-soft);font-size:11.5px;margin-top:-8px;">Use this once if you have older activities from before dates auto-synced.</p>` : ''}`;
   D.activities.forEach(a=>{
     html += `<div class="admin-list-item"><div class="info"><b>${a.title}</b><br><small>${a.type} · starts ${a.start||'TBA'} · due ${a.due||'TBA'}</small></div>
       <div style="display:flex;gap:6px;">
@@ -459,6 +460,15 @@ async function adminDeleteActivity(id){
   await dbDeleteActivity(id);
   await refreshAdminData();
   renderAdmin();
+}
+async function adminResyncAllActivities(){
+  const D = DATA[adminSchool];
+  for(const a of D.activities){
+    await dbSyncActivityCalendarEvents(adminSchool, a.id, a.subjectId, a.title, a.type, a.start, a.due);
+  }
+  await refreshAdminData();
+  renderAdmin();
+  alert('Calendar synced for all activities.');
 }
 
 /* ---- FAQ admin ---- */
