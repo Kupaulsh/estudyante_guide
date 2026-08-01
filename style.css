@@ -188,8 +188,20 @@ main{flex:1;width:100%;max-width:920px;margin:0 auto;padding:26px 20px 140px;}
 /* ---------- CALENDAR ---------- */
 .cal-layout{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;}
 @media(max-width:760px){.cal-layout{grid-template-columns:1fr;}}
-.cal-sidebar{position:sticky;top:20px;}
+.cal-sidebar{position:sticky;top:20px;display:flex;flex-direction:column;gap:14px;}
 .cal-legend{display:flex;flex-wrap:wrap;gap:6px;}
+.cal-upcoming-card{padding:18px;}
+.upcoming-row{align-items:center;}
+.upcoming-side{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;}
+.check-btn{
+  width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);
+  display:flex;align-items:center;justify-content:center;color:transparent;transition:.15s ease;
+}
+.check-btn svg{width:14px;height:14px;}
+.check-btn:hover{border-color:var(--accent);}
+.check-btn.checked{background:var(--accent);border-color:var(--accent);color:#fff;}
+.upcoming-row.is-done .hub-text h4{text-decoration:line-through;color:var(--ink-soft);}
+.upcoming-row.is-done{opacity:.6;}
 .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 .cal-head button{background:var(--surface-2);border:none;border-radius:10px;width:34px;height:34px;font-size:16px;}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
@@ -237,11 +249,11 @@ main{flex:1;width:100%;max-width:920px;margin:0 auto;padding:26px 20px 140px;}
 
 /* ---------- SCHEDULE ---------- */
 .sched-item{
-  display:flex;gap:14px;padding:14px;border:1px solid var(--line);
+  display:flex;gap:14px;padding:14px;border:2px solid var(--line);
   border-radius:var(--radius-md);background:var(--surface);margin-bottom:10px;
   transition:.15s ease;
 }
-.sched-item:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:var(--shadow);}
+.sched-item:hover{transform:translateY(-1px);box-shadow:var(--shadow);}
 .sched-time{
   min-width:78px;font-size:12.5px;color:var(--ink-soft);font-weight:600;
   padding-top:2px;

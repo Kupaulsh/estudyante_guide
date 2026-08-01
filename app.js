@@ -180,16 +180,10 @@ function closeModal(){ document.getElementById('modalScrim').classList.remove('s
 function getUpcomingDue(limit){
   const today = todayISO();
   const items = [];
-  S().activities.forEach(a=>{
-    if(a.due && a.due >= today){
-      const subj = S().subjects.find(s=>s.id===a.subjectId);
-      items.push({date:a.due, title:a.title, type:a.type==='Project'?'project':'due', kind:'activity', id:a.id, subj: subj?subj.name:''});
-    }
-  });
   S().events.forEach(e=>{
     if((e.type==='due'||e.type==='project') && e.date >= today){
       const subj = S().subjects.find(s=>s.id===e.subjectId);
-      items.push({date:e.date, title:e.title, type:e.type, kind:'event', id:e.date, subj: subj?subj.name:''});
+      items.push({date:e.date, title:e.title, type:e.type, id:e.id, subj: subj?subj.name:''});
     }
   });
   items.sort((a,b)=>a.date.localeCompare(b.date));
@@ -201,6 +195,15 @@ function daysFromToday(iso){
   if(diff===0) return 'Today';
   if(diff===1) return 'Tomorrow';
   return `In ${diff} days`;
+}
+function getDoneSet(){
+  try{ return new Set(JSON.parse(localStorage.getItem('shDoneItems')||'[]')); }catch(e){ return new Set(); }
+}
+function toggleDone(id){
+  const done = getDoneSet();
+  if(done.has(id)) done.delete(id); else done.add(id);
+  localStorage.setItem('shDoneItems', JSON.stringify([...done]));
+  renderCalendar();
 }
 function renderCalendar(){
   const y = calCursor.getFullYear(), m = calCursor.getMonth();
@@ -234,23 +237,32 @@ function renderCalendar(){
     <div class="cal-legend">
       <span class="tag">● Event</span><span class="tag due">● Due</span><span class="tag project">● Project</span>
     </div>
-    <div class="section-label" style="margin-top:18px;">Coming Up</div>
+    <div class="card cal-upcoming-card">
+    <div class="section-label" style="margin-top:0;">Coming Up</div>
     <div class="hub-list">`;
   const upcoming = getUpcomingDue(6);
+  const done = getDoneSet();
   if(upcoming.length===0){
     html += `<p style="color:var(--ink-soft);font-size:13px;">Nothing due soon.</p>`;
   } else {
     upcoming.forEach(u=>{
-      html += `<div class="hub-row" onclick="${u.kind==='activity'?`openActivity('${u.id}')`:`openDay('${u.id}')`}">
-        <div class="hub-text">
+      const isDone = done.has(u.id);
+      html += `<div class="hub-row upcoming-row ${isDone?'is-done':''}">
+        <div class="hub-text" onclick="openDay('${u.date}')" style="cursor:pointer;">
           <h4>${u.title}</h4>
           <p>${u.subj?u.subj+' · ':''}${daysFromToday(u.date)} · ${u.date}</p>
         </div>
-        <span class="tag ${u.type}" style="margin:0;">${u.type}</span>
+        <div class="upcoming-side">
+          <span class="tag ${u.type}" style="margin:0;">${u.type}</span>
+          <button class="check-btn ${isDone?'checked':''}" onclick="event.stopPropagation();toggleDone('${u.id}')" aria-label="Mark done">
+            <svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
       </div>`;
     });
   }
   html += `</div>
+  </div>
   </div>
   </div>`;
   document.getElementById('pageContent').innerHTML = html;
@@ -309,8 +321,7 @@ function renderSchedule(){
   let lastDay = undefined;
   rows.forEach(r=>{
     if(r.day !== lastDay){ html += `<div class="section-label">${r.day||'Unscheduled'}</div>`; lastDay = r.day; }
-    html += `<div class="sched-item" onclick="openSubject('${r.subject.id}')" style="cursor:pointer;">
-      <div class="sched-swatch" style="background:${r.subject.color}"></div>
+    html += `<div class="sched-item" onclick="openSubject('${r.subject.id}')" style="cursor:pointer;border-color:${r.subject.color};">
       <div class="sched-time">${r.time||'TBA'}</div>
       <div class="sched-body">
         <h4>${r.subject.name}</h4>
