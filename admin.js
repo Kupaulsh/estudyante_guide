@@ -433,14 +433,18 @@ function adminRules(D){
     <div><label>Core Values (comma-separated)</label><input id="r_values" value="${escAttr(r.coreValues.join(', '))}"></div>
     <button class="btn" onclick="adminSaveRules()">Save</button>
   </div>
-  <div class="section-label">Guidelines</div>`;
+  <div class="section-label">More sections</div>
+  <p style="color:var(--ink-soft);font-size:12.5px;margin-top:-6px;">Add anything else that doesn't fit above — university hymn, strategic goals, rules & regulations, dress code, whatever you need. Each one shows up as its own block on the Rules and Others page.</p>`;
+  if(r.guidelines.length===0){
+    html += `<p style="color:var(--ink-soft);font-size:12.5px;">None yet.</p>`;
+  }
   r.guidelines.forEach((g)=>{
     html += `<div class="admin-list-item"><div class="info"><b>${g.title}</b><br><small>${g.body}</small></div><button class="btn sm danger" onclick="adminDeleteGuideline('${g.id}')">Delete</button></div>`;
   });
   html += `<div class="form-grid">
-    <input id="g_title" placeholder="Guideline title">
-    <textarea id="g_body" placeholder="Guideline text" rows="2"></textarea>
-    <button class="btn ghost" onclick="adminAddGuideline()">+ Add guideline</button>
+    <input id="g_title" placeholder="Section title (e.g. University Hymn, Strategic Goals, Dress Code)">
+    <textarea id="g_body" placeholder="Content for this section" rows="3"></textarea>
+    <button class="btn ghost" onclick="adminAddGuideline()">+ Add section</button>
   </div>`;
   return html;
 }

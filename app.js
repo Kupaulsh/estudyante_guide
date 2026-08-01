@@ -110,7 +110,7 @@ const PAGES = [
     icon:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" fill="none" stroke="currentColor" stroke-width="1.8"/>'},
   {id:'howto', label:'How-To', title:'How-To', sub:'Frequently asked questions.',
     icon:'<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2 1.7-2 3.3M12 17h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'},
-  {id:'rules', label:'Rules & Others', title:'Rules and Others', sub:'Vision, mission, core values, and university guidelines.',
+  {id:'rules', label:'Rules & Others', title:'Rules and Others', sub:'Vision, mission, core values, guidelines, and anything else you add.',
     icon:'<path d="M12 2 3 6v6c0 5 4 8.5 9 10 5-1.5 9-5 9-10V6z" fill="none" stroke="currentColor" stroke-width="1.8"/>'}
 ];
 
@@ -630,17 +630,18 @@ function toggleFaq(i){ document.getElementById('faq-'+i).classList.toggle('open'
 /* =========================================================
    RULES AND OTHERS
 ========================================================= */
+function nl2br(s){ return (s||'').replace(/\n/g, '<br>'); }
 function renderRules(){
   const r = S().rules;
   let html = `
-    <div class="rules-block"><h3>Vision</h3><p>${r.vision||'Not set yet.'}</p></div>
-    <div class="rules-block"><h3>Mission</h3><p>${r.mission||'Not set yet.'}</p></div>
-    <div class="rules-block"><h3>Preamble</h3><p>${r.preamble||'Not set yet.'}</p></div>
+    <div class="rules-block"><h3>Vision</h3><p>${nl2br(r.vision)||'Not set yet.'}</p></div>
+    <div class="rules-block"><h3>Mission</h3><p>${nl2br(r.mission)||'Not set yet.'}</p></div>
+    <div class="rules-block"><h3>Preamble</h3><p>${nl2br(r.preamble)||'Not set yet.'}</p></div>
     <div class="rules-block"><h3>Core Values</h3><div class="core-values">${r.coreValues.map(v=>`<div>${v}</div>`).join('') || '<p style="color:var(--ink-soft);">Not set yet.</p>'}</div></div>
-    <div class="section-label">Rules, Regulations & Guidelines</div>`;
+    <div class="section-label">More Sections</div>`;
   if(r.guidelines.length===0) html += `<p style="color:var(--ink-soft);">Not set yet.</p>`;
   r.guidelines.forEach(g=>{
-    html += `<div class="rules-block"><h3>${g.title}</h3><p>${g.body}</p></div>`;
+    html += `<div class="rules-block"><h3>${g.title}</h3><p>${nl2br(g.body)}</p></div>`;
   });
   document.getElementById('pageContent').innerHTML = html;
 }
