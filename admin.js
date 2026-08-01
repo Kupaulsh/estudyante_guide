@@ -74,7 +74,7 @@ checkAdminSession();
 /* =========================================================
    ADMIN PANEL
 ========================================================= */
-const ADMIN_TABS = ['subjects','schedule','reviewers','events','activities','faqs','rules','theme'];
+const ADMIN_TABS = ['subjects','reviewers','events','activities','faqs','rules','theme'];
 
 async function refreshAdminData(){
   DATA[adminSchool] = await loadSchoolData(adminSchool);
@@ -93,7 +93,6 @@ function renderAdmin(){
   const D = DATA[adminSchool];
   if(!D){ body.innerHTML = `<p style="color:var(--ink-soft);">Loading…</p>`; return; }
   if(adminTab==='subjects') body.innerHTML = adminSubjects(D);
-  if(adminTab==='schedule') body.innerHTML = adminSchedule(D);
   if(adminTab==='reviewers') body.innerHTML = adminReviewers(D);
   if(adminTab==='events') body.innerHTML = adminEvents(D);
   if(adminTab==='activities') body.innerHTML = adminActivities(D);
@@ -106,9 +105,11 @@ function renderAdmin(){
 function adminSubjects(D){
   let html = `<button class="btn" onclick="adminAddSubject()">+ Add subject</button><div style="height:14px;"></div>`;
   D.subjects.forEach(s=>{
+    const schedSummary = s.schedule.length===0 ? 'No schedule set'
+      : s.schedule.map(sl=>`${sl.day||'?'} ${sl.time||'TBA'}`).join(' · ');
     html += `<div class="admin-list-item">
       <div class="info">
-        <b>${s.name}</b> <small>${s.code}</small>
+        <b>${s.name}</b> <small>${s.code} · ${schedSummary}</small>
         <small>${s.syllabus.length} syllabus file(s) · ${s.materials.length} material(s)</small>
       </div>
       <div style="display:flex;gap:6px;">
@@ -145,6 +146,23 @@ function adminEditSubject(id){
   <button class="btn" onclick="adminSaveSubject('${id}')">Save details</button>
   <hr style="margin:20px 0;border:none;border-top:1px solid var(--line);">
 
+  <div class="section-label" style="margin-top:0;">Schedule</div>
+  <p style="color:var(--ink-soft);font-size:12.5px;margin-top:-6px;">Add one entry per class meeting — e.g. a "Mon" one for lecture, a separate "Wed" one for lab.</p>
+  <div id="scheduleList">${adminScheduleList(s.schedule, id)}</div>
+  <div class="form-grid">
+    <div class="two-col">
+      <div><label>Day</label>
+        <select id="sc_day_${id}">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<option>${d}</option>`).join('')}</select>
+      </div>
+      <div><label>Time slot</label><input id="sc_time_${id}" placeholder="8:00–10:00 AM"></div>
+    </div>
+    <div class="two-col">
+      <div><label>Professor</label><input id="sc_prof_${id}" placeholder="Professor name"></div>
+      <div><label>Room</label><input id="sc_room_${id}" placeholder="Room number"></div>
+    </div>
+    <button class="btn ghost" onclick="adminAddScheduleSlot('${id}')">+ Add this meeting time</button>
+  </div>
+
   <div class="section-label">Syllabus files</div>
   <div id="syllabusList">${adminFileList(s.syllabus,'syllabus_files',id)}</div>
   ${adminFileAddForm('syllabus_files', id)}
@@ -153,6 +171,24 @@ function adminEditSubject(id){
   <div id="materialsList">${adminFileList(s.materials,'materials',id)}</div>
   ${adminFileAddForm('materials', id)}`;
   openModal(html);
+}
+function adminScheduleList(slots, subjId){
+  if(slots.length===0) return `<p style="font-size:12.5px;color:var(--ink-soft);">None yet — this subject won't show up on the Schedule page until you add one.</p>`;
+  return slots.map(sl=>`<div class="admin-list-item"><div class="info"><b>${sl.day||'?'} · ${sl.time||'TBA'}</b><br><small>${sl.professor||'Professor TBA'} · Room ${sl.room||'TBA'}</small></div><button class="btn sm danger" onclick="adminDeleteScheduleSlot('${subjId}','${sl.id}')">Delete</button></div>`).join('');
+}
+async function adminAddScheduleSlot(subjId){
+  const day = document.getElementById(`sc_day_${subjId}`).value;
+  const time = document.getElementById(`sc_time_${subjId}`).value.trim();
+  const professor = document.getElementById(`sc_prof_${subjId}`).value.trim();
+  const room = document.getElementById(`sc_room_${subjId}`).value.trim();
+  await dbAddScheduleSlot(subjId, day, time, room, professor);
+  await refreshAdminData();
+  adminEditSubject(subjId);
+}
+async function adminDeleteScheduleSlot(subjId, slotId){
+  await dbDeleteScheduleSlot(slotId);
+  await refreshAdminData();
+  adminEditSubject(subjId);
 }
 function adminFileList(list, table, subjId){
   if(list.length===0) return `<p style="font-size:12.5px;color:var(--ink-soft);">None yet.</p>`;
@@ -191,66 +227,6 @@ async function adminSaveSubject(id){
   await refreshAdminData();
   renderAdmin();
   closeModal();
-}
-
-/* ---- Schedule admin (a subject can have multiple meeting slots) ---- */
-function adminSchedule(D){
-  if(D.subjects.length===0) return `<p style="color:var(--ink-soft);">Add subjects first (in the Subjects tab), then set their schedule here.</p>`;
-  let html = '';
-  D.subjects.forEach(s=>{
-    const summary = s.schedule.length===0 ? 'No schedule set'
-      : s.schedule.map(sl=>`${sl.day||'?'} ${sl.time||'TBA'}`).join(' · ');
-    html += `<div class="admin-list-item">
-      <div class="info">
-        <b>${s.name}</b>
-        <small>${summary}</small>
-      </div>
-      <button class="btn sm ghost" onclick="adminEditSchedule('${s.id}')">Edit</button>
-    </div>`;
-  });
-  return html;
-}
-function adminEditSchedule(id){
-  const D = DATA[adminSchool];
-  const s = D.subjects.find(x=>x.id===id);
-  const html = `<h3>Schedule — ${s.name}</h3>
-  <p style="color:var(--ink-soft);font-size:12.5px;">Add one entry per class meeting — e.g. add a "Mon" one for lecture, then a separate "Wed" one for lab. Each stays independent.</p>
-  <div class="section-label" style="margin-top:16px;">Current meeting times</div>
-  <div id="scheduleList">${adminScheduleList(s.schedule, id)}</div>
-  <hr style="margin:20px 0;border:none;border-top:1px solid var(--line);">
-  <div class="section-label" style="margin-top:0;">Add a new meeting time</div>
-  <div class="form-grid">
-    <div class="two-col">
-      <div><label>Day</label>
-        <select id="sc_day_${id}">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<option>${d}</option>`).join('')}</select>
-      </div>
-      <div><label>Time slot</label><input id="sc_time_${id}" placeholder="8:00–10:00 AM"></div>
-    </div>
-    <div class="two-col">
-      <div><label>Professor</label><input id="sc_prof_${id}" placeholder="Professor name"></div>
-      <div><label>Room</label><input id="sc_room_${id}" placeholder="Room number"></div>
-    </div>
-    <button class="btn" onclick="adminAddScheduleSlot('${id}')">+ Add this meeting time</button>
-  </div>`;
-  openModal(html);
-}
-function adminScheduleList(slots, subjId){
-  if(slots.length===0) return `<p style="font-size:12.5px;color:var(--ink-soft);">None yet — this subject won't show up on the Schedule page until you add one.</p>`;
-  return slots.map(sl=>`<div class="admin-list-item"><div class="info"><b>${sl.day||'?'} · ${sl.time||'TBA'}</b><br><small>${sl.professor||'Professor TBA'} · Room ${sl.room||'TBA'}</small></div><button class="btn sm danger" onclick="adminDeleteScheduleSlot('${subjId}','${sl.id}')">Delete</button></div>`).join('');
-}
-async function adminAddScheduleSlot(subjId){
-  const day = document.getElementById(`sc_day_${subjId}`).value;
-  const time = document.getElementById(`sc_time_${subjId}`).value.trim();
-  const professor = document.getElementById(`sc_prof_${subjId}`).value.trim();
-  const room = document.getElementById(`sc_room_${subjId}`).value.trim();
-  await dbAddScheduleSlot(subjId, day, time, room, professor);
-  await refreshAdminData();
-  adminEditSchedule(subjId);
-}
-async function adminDeleteScheduleSlot(subjId, slotId){
-  await dbDeleteScheduleSlot(slotId);
-  await refreshAdminData();
-  adminEditSchedule(subjId);
 }
 
 /* ---- Reviewers admin (flashcards + quiz per subject) ---- */
