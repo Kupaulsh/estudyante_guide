@@ -189,8 +189,14 @@ main{flex:1;width:100%;max-width:920px;margin:0 auto;padding:26px 20px 140px;}
 .cal-layout{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;}
 @media(max-width:760px){.cal-layout{grid-template-columns:1fr;}}
 .cal-sidebar{position:sticky;top:20px;display:flex;flex-direction:column;gap:14px;}
-.cal-legend{display:flex;flex-wrap:wrap;gap:6px;}
-.cal-upcoming-card{padding:18px;}
+.cal-legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px;}
+.btn-tag{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--accent);color:#fff;border:none;border-radius:20px;
+  padding:5px 12px;font-size:11px;font-weight:700;margin:2px 0;
+}
+.cal-upcoming-card{padding:18px;height:520px;display:flex;flex-direction:column;}
+.cal-upcoming-scroll{flex:1;overflow-y:auto;margin-top:2px;}
 .upcoming-row{align-items:center;}
 .upcoming-side{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;}
 .check-btn{
@@ -241,7 +247,7 @@ main{flex:1;width:100%;max-width:920px;margin:0 auto;padding:26px 20px 140px;}
   border-radius:50%;font-size:15px;
 }
 .tag{
-  display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;
+  display:inline-block;font-size:11px;padding:5px 10px;border-radius:20px;
   background:var(--accent-soft);color:var(--accent);font-weight:600;margin:2px 4px 2px 0;
 }
 .tag.due{background:var(--danger-soft);color:var(--danger);}
@@ -311,9 +317,14 @@ main{flex:1;width:100%;max-width:920px;margin:0 auto;padding:26px 20px 140px;}
 
 /* ---------- ACTIVITIES ---------- */
 .act-item{
+  display:flex;gap:12px;align-items:flex-start;
   border:1px solid var(--line);border-radius:var(--radius-md);
   padding:14px 16px;margin-bottom:10px;background:var(--surface);
 }
+.act-item.is-done{opacity:.6;}
+.act-item.is-done .act-item-body h4{text-decoration:line-through;color:var(--ink-soft);}
+.act-item-body{flex:1;min-width:0;}
+.act-item-side{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;}
 .act-item h4{font-size:14.5px;}
 .act-item .meta{font-size:12px;color:var(--ink-soft);margin-bottom:6px;}
 select, input, textarea{

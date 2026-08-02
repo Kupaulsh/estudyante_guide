@@ -169,8 +169,35 @@ function adminEditSubject(id){
 
   <div class="section-label">Materials (PDF / PPTX / DOCX)</div>
   <div id="materialsList">${adminFileList(s.materials,'materials',id)}</div>
-  ${adminFileAddForm('materials', id)}`;
+  ${adminFileAddForm('materials', id)}
+
+  <div class="section-label">PDF Books</div>
+  <div id="booksList">${adminBookList(s.books, id)}</div>
+  <div class="form-grid">
+    <input id="bk_label_${id}" placeholder="Book title">
+    <input id="bk_author_${id}" placeholder="Author (optional)">
+    <input id="bk_url_${id}" placeholder="Link (Google Drive URL)">
+    <button class="btn ghost" onclick="adminAddBook('${id}')">+ Add book</button>
+  </div>`;
   openModal(html);
+}
+function adminBookList(books, subjId){
+  if(!books || books.length===0) return `<p style="font-size:12.5px;color:var(--ink-soft);">None yet.</p>`;
+  return books.map(b=>`<div class="admin-list-item"><div class="info"><b>${b.label}</b><br><small>${b.author?b.author+' — ':''}${b.url}</small></div><button class="btn sm danger" onclick="adminDeleteBook('${subjId}','${b.id}')">Delete</button></div>`).join('');
+}
+async function adminAddBook(subjId){
+  const label = document.getElementById(`bk_label_${subjId}`).value.trim();
+  const author = document.getElementById(`bk_author_${subjId}`).value.trim();
+  const url = document.getElementById(`bk_url_${subjId}`).value.trim();
+  if(!label || !url){ alert('Title and link are required.'); return; }
+  await dbAddBook(subjId, label, author, url);
+  await refreshAdminData();
+  adminEditSubject(subjId);
+}
+async function adminDeleteBook(subjId, bookId){
+  await dbDeleteBook(bookId);
+  await refreshAdminData();
+  adminEditSubject(subjId);
 }
 function adminScheduleList(slots, subjId){
   if(slots.length===0) return `<p style="font-size:12.5px;color:var(--ink-soft);">None yet — this subject won't show up on the Schedule page until you add one.</p>`;
@@ -250,15 +277,16 @@ function adminEditReviewer(id){
   const html = `<h3>Reviewers — ${s.name}</h3>
 
   <div class="section-label" style="margin-top:0;">Flashcards</div>
-  <div id="flashList">${s.flashcards.map((f)=>`<div class="admin-list-item"><div class="info"><b>Q:</b> ${f.q}<br><small>A: ${f.a}</small></div><button class="btn sm danger" onclick="adminDeleteFlash('${id}','${f.id}')">Delete</button></div>`).join('')}</div>
+  <div id="flashList">${s.flashcards.map((f)=>`<div class="admin-list-item"><div class="info">${f.image?`<img src="${f.image}" style="width:100%;max-width:160px;border-radius:8px;margin-bottom:6px;display:block;">`:''}<b>Q:</b> ${f.q}<br><small>A: ${f.a}</small></div><button class="btn sm danger" onclick="adminDeleteFlash('${id}','${f.id}')">Delete</button></div>`).join('')}</div>
   <div class="form-grid">
     <input id="fc_q" placeholder="Question">
     <input id="fc_a" placeholder="Answer">
+    <input id="fc_img" placeholder="Image URL (optional — direct image link)">
     <button class="btn ghost" onclick="adminAddFlash('${id}')">+ Add flashcard</button>
   </div>
 
   <div class="section-label">Quiz questions</div>
-  <div id="quizList">${s.quiz.map((q)=>`<div class="admin-list-item"><div class="info"><b>${q.q}</b><br><small>Choices: ${q.choices.join(' | ')} — Correct: ${q.choices[q.answer]} — ${q.difficulty}</small></div><button class="btn sm danger" onclick="adminDeleteQuiz('${id}','${q.id}')">Delete</button></div>`).join('')}</div>
+  <div id="quizList">${s.quiz.map((q)=>`<div class="admin-list-item"><div class="info">${q.image?`<img src="${q.image}" style="width:100%;max-width:160px;border-radius:8px;margin-bottom:6px;display:block;">`:''}<b>${q.q}</b><br><small>Choices: ${q.choices.join(' | ')} — Correct: ${q.choices[q.answer]} — ${q.difficulty}</small></div><button class="btn sm danger" onclick="adminDeleteQuiz('${id}','${q.id}')">Delete</button></div>`).join('')}</div>
   <div class="form-grid">
     <input id="qz_q" placeholder="Question">
     <input id="qz_choices" placeholder="Choices, separated by $ (e.g. A $ B $ C $ D)">
@@ -266,6 +294,7 @@ function adminEditReviewer(id){
     <select id="qz_diff">
       <option>Easy</option><option>Average</option><option>Hard</option><option>Very Hard</option>
     </select>
+    <input id="qz_img" placeholder="Image URL (optional — direct image link)">
     <button class="btn ghost" onclick="adminAddQuiz('${id}')">+ Add quiz question</button>
   </div>`;
   openModal(html);
@@ -273,8 +302,9 @@ function adminEditReviewer(id){
 async function adminAddFlash(subjId){
   const q = document.getElementById('fc_q').value.trim();
   const a = document.getElementById('fc_a').value.trim();
+  const img = document.getElementById('fc_img').value.trim();
   if(!q||!a){alert('Fill both fields.');return;}
-  await dbAddFlashcard(subjId, q, a);
+  await dbAddFlashcard(subjId, q, a, img);
   await refreshAdminData();
   adminEditReviewer(subjId);
 }
@@ -288,9 +318,10 @@ async function adminAddQuiz(subjId){
   const choices = document.getElementById('qz_choices').value.split('$').map(c=>c.trim()).filter(Boolean);
   const answerText = document.getElementById('qz_answer').value.trim();
   const diff = document.getElementById('qz_diff').value;
+  const img = document.getElementById('qz_img').value.trim();
   const answerIdx = choices.indexOf(answerText);
   if(!q||choices.length<2||answerIdx===-1){ alert('Fill all fields; correct answer must exactly match one choice.'); return; }
-  await dbAddQuiz(subjId, q, choices, answerIdx, diff);
+  await dbAddQuiz(subjId, q, choices, answerIdx, diff, img);
   await refreshAdminData();
   adminEditReviewer(subjId);
 }
@@ -376,19 +407,8 @@ async function adminDeleteEvent(id){
 
 /* ---- Activities admin ---- */
 function adminActivities(D){
-  let html = `<div class="form-grid">
-    <input id="ac_title" placeholder="Title">
-    <select id="ac_subject"><option value="">General (not tied to a subject)</option>${D.subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
-    <select id="ac_type"><option>Assignment</option><option>Activity</option><option>Project</option></select>
-    <div class="two-col">
-      <div><label>Start</label><input id="ac_start" type="date" value="${todayISO()}"></div>
-      <div><label>Due</label><input id="ac_due" type="date" value="${todayISO()}"></div>
-    </div>
-    <textarea id="ac_instr" placeholder="Instructions" rows="2"></textarea>
-    <input id="ac_tags" placeholder="Tags, separated by $">
-    <button class="btn" onclick="adminAddActivity()">+ Add activity</button>
-  </div>
-  <p style="color:var(--ink-soft);font-size:12.5px;margin-top:-6px;">Start and due dates are automatically added to the Calendar too — no need to add them twice.</p>
+  let html = `<button class="btn" onclick="adminAddActivity()">+ Add activity</button>
+  <p style="color:var(--ink-soft);font-size:12.5px;margin-top:8px;">Due dates are automatically added to the Calendar too.</p>
   <div class="section-label">All activities</div>
   ${D.activities.length ? `<button class="btn ghost sm" onclick="adminResyncAllActivities()" style="margin-bottom:12px;">↻ Sync all to Calendar</button><p style="color:var(--ink-soft);font-size:11.5px;margin-top:-8px;">Use this once if you have older activities from before dates auto-synced.</p>` : ''}`;
   D.activities.forEach(a=>{
@@ -401,20 +421,13 @@ function adminActivities(D){
   return html;
 }
 async function adminAddActivity(){
-  const title = document.getElementById('ac_title').value.trim();
-  if(!title){alert('Title required.');return;}
-  const subjectId = document.getElementById('ac_subject').value || null;
-  const type = document.getElementById('ac_type').value;
-  const start = document.getElementById('ac_start').value;
-  const due = document.getElementById('ac_due').value;
   const newId = await dbAddActivity(adminSchool, {
-    title, subject_id: subjectId, type, start_date: start, due_date: due,
-    instructions: document.getElementById('ac_instr').value,
-    tags: document.getElementById('ac_tags').value.split('$').map(t=>t.trim()).filter(Boolean)
+    title: 'New Activity', type: 'Assignment', start_date: todayISO(), due_date: todayISO(),
+    instructions: '', tags: []
   });
-  if(newId) await dbSyncActivityCalendarEvents(adminSchool, newId, subjectId, title, type, start, due);
   await refreshAdminData();
   renderAdmin();
+  if(newId) adminEditActivity(newId);
 }
 function adminEditActivity(id){
   const D = DATA[adminSchool];
@@ -435,9 +448,10 @@ function adminEditActivity(id){
     </div>
     <textarea id="ac_instr_edit" placeholder="Instructions" rows="3">${a.instructions||''}</textarea>
     <input id="ac_tags_edit" value="${escAttr((a.tags||[]).join(' $ '))}" placeholder="Tags, separated by $">
+    <input id="ac_img_edit" value="${escAttr(a.image||'')}" placeholder="Image URL (optional — direct image link)">
     <button class="btn" onclick="adminSaveActivity('${id}')">Save</button>
   </div>
-  <p style="color:var(--ink-soft);font-size:12.5px;">Saving updates the matching Calendar entries too.</p>`;
+  <p style="color:var(--ink-soft);font-size:12.5px;">Saving updates the matching Calendar entry too.</p>`;
   openModal(html);
 }
 async function adminSaveActivity(id){
@@ -446,12 +460,14 @@ async function adminSaveActivity(id){
   const type = document.getElementById('ac_type_edit').value;
   const start = document.getElementById('ac_start_edit').value;
   const due = document.getElementById('ac_due_edit').value;
+  const instructions = document.getElementById('ac_instr_edit').value;
   await dbUpdateActivity(id, {
     title, subject_id: subjectId, type, start_date: start, due_date: due,
-    instructions: document.getElementById('ac_instr_edit').value,
-    tags: document.getElementById('ac_tags_edit').value.split('$').map(t=>t.trim()).filter(Boolean)
+    instructions,
+    tags: document.getElementById('ac_tags_edit').value.split('$').map(t=>t.trim()).filter(Boolean),
+    image_url: document.getElementById('ac_img_edit').value.trim()
   });
-  await dbSyncActivityCalendarEvents(adminSchool, id, subjectId, title, type, start, due);
+  await dbSyncActivityCalendarEvents(adminSchool, id, subjectId, title, type, start, due, instructions);
   await refreshAdminData();
   renderAdmin();
   closeModal();
@@ -464,7 +480,7 @@ async function adminDeleteActivity(id){
 async function adminResyncAllActivities(){
   const D = DATA[adminSchool];
   for(const a of D.activities){
-    await dbSyncActivityCalendarEvents(adminSchool, a.id, a.subjectId, a.title, a.type, a.start, a.due);
+    await dbSyncActivityCalendarEvents(adminSchool, a.id, a.subjectId, a.title, a.type, a.start, a.due, a.instructions);
   }
   await refreshAdminData();
   renderAdmin();

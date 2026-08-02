@@ -13,7 +13,7 @@ async function loadSchoolData(schoolId){
   const [schoolRes, subjectsRes, eventsRes, activitiesRes, faqsRes, rulesRes, guidelinesRes] = await Promise.all([
     supabase.from('schools').select('*').eq('id', schoolId).maybeSingle(),
     supabase.from('subjects')
-      .select('*, schedule_slots(*), syllabus_files(*), materials(*), flashcards(*), quiz_questions(*)')
+      .select('*, schedule_slots(*), syllabus_files(*), materials(*), flashcards(*), quiz_questions(*), pdf_books(*)')
       .eq('school_id', schoolId)
       .order('created_at', {ascending:true}),
     supabase.from('events').select('*').eq('school_id', schoolId),
@@ -36,11 +36,12 @@ async function loadSchoolData(schoolId){
       schedule: (s.schedule_slots || []).map(sl => ({id:sl.id, day:sl.day, time:sl.time, room:sl.room, professor:sl.professor})),
       syllabus: (s.syllabus_files || []).map(f => ({id:f.id, label:f.label, type:f.type, url:f.url})),
       materials: (s.materials || []).map(f => ({id:f.id, label:f.label, type:f.type, url:f.url})),
-      flashcards: (s.flashcards || []).map(f => ({id:f.id, q:f.question, a:f.answer})),
-      quiz: (s.quiz_questions || []).map(q => ({id:q.id, q:q.question, choices:q.choices, answer:q.correct_index, difficulty:q.difficulty}))
+      flashcards: (s.flashcards || []).map(f => ({id:f.id, q:f.question, a:f.answer, image:f.image_url})),
+      quiz: (s.quiz_questions || []).map(q => ({id:q.id, q:q.question, choices:q.choices, answer:q.correct_index, difficulty:q.difficulty, image:q.image_url})),
+      books: (s.pdf_books || []).map(b => ({id:b.id, label:b.label, author:b.author, url:b.url}))
     })),
     events: (eventsRes.data || []).map(e => ({id:e.id, date:e.date, title:e.title, type:e.type, desc:e.description, subjectId:e.subject_id, sourceActivityId:e.source_activity_id})),
-    activities: (activitiesRes.data || []).map(a => ({id:a.id, title:a.title, subjectId:a.subject_id, type:a.type, start:a.start_date, due:a.due_date, instructions:a.instructions, tags:a.tags || []})),
+    activities: (activitiesRes.data || []).map(a => ({id:a.id, title:a.title, subjectId:a.subject_id, type:a.type, start:a.start_date, due:a.due_date, instructions:a.instructions, tags:a.tags || [], image:a.image_url})),
     faqs: (faqsRes.data || []).map(f => ({id:f.id, q:f.question, a:f.answer})),
     rules: {
       vision: rulesRes.data?.vision || '',
@@ -99,9 +100,19 @@ async function dbDeleteFile(table, id){
   if(error) alert('Could not delete file: '+error.message);
 }
 
+/* ---- PDF Books ---- */
+async function dbAddBook(subjectId, label, author, url){
+  const {error} = await supabase.from('pdf_books').insert({subject_id: subjectId, label, author: author||'', url});
+  if(error) alert('Could not add book: '+error.message);
+}
+async function dbDeleteBook(id){
+  const {error} = await supabase.from('pdf_books').delete().eq('id', id);
+  if(error) alert('Could not delete book: '+error.message);
+}
+
 /* ---- Flashcards ---- */
-async function dbAddFlashcard(subjectId, q, a){
-  const {error} = await supabase.from('flashcards').insert({subject_id: subjectId, question: q, answer: a});
+async function dbAddFlashcard(subjectId, q, a, imageUrl){
+  const {error} = await supabase.from('flashcards').insert({subject_id: subjectId, question: q, answer: a, image_url: imageUrl || ''});
   if(error) alert('Could not add flashcard: '+error.message);
 }
 async function dbDeleteFlashcard(id){
@@ -110,9 +121,9 @@ async function dbDeleteFlashcard(id){
 }
 
 /* ---- Quiz questions ---- */
-async function dbAddQuiz(subjectId, question, choices, correctIndex, difficulty){
+async function dbAddQuiz(subjectId, question, choices, correctIndex, difficulty, imageUrl){
   const {error} = await supabase.from('quiz_questions').insert({
-    subject_id: subjectId, question, choices, correct_index: correctIndex, difficulty
+    subject_id: subjectId, question, choices, correct_index: correctIndex, difficulty, image_url: imageUrl || ''
   });
   if(error) alert('Could not add quiz question: '+error.message);
 }
@@ -150,20 +161,14 @@ async function dbDeleteActivity(id){
   if(error) alert('Could not delete activity: '+error.message);
 }
 
-// Keeps the calendar in sync with an activity's start/due dates.
+// Keeps the calendar in sync with an activity's due date only (no separate "Starts" entry).
 // Wipes any calendar events this activity previously generated, then recreates them.
-async function dbSyncActivityCalendarEvents(schoolId, activityId, subjectId, title, type, start, due){
+async function dbSyncActivityCalendarEvents(schoolId, activityId, subjectId, title, type, start, due, instructions){
   await supabase.from('events').delete().eq('source_activity_id', activityId);
-  const rows = [];
-  if(start){
-    rows.push({school_id: schoolId, subject_id: subjectId || null, date: start, title: `${title} — Starts`, type: 'event', description: '', source_activity_id: activityId});
-  }
   if(due){
-    rows.push({school_id: schoolId, subject_id: subjectId || null, date: due, title: `${title} — Due`, type: type==='Project' ? 'project' : 'due', description: '', source_activity_id: activityId});
-  }
-  if(rows.length){
-    const {error} = await supabase.from('events').insert(rows);
-    if(error) console.error('Could not sync calendar events for activity:', error);
+    const row = {school_id: schoolId, subject_id: subjectId || null, date: due, title, type: type==='Project' ? 'project' : 'due', description: instructions || '', source_activity_id: activityId};
+    const {error} = await supabase.from('events').insert(row);
+    if(error) console.error('Could not sync calendar event for activity:', error);
   }
 }
 

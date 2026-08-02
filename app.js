@@ -189,7 +189,8 @@ function getUpcomingDue(limit){
     }
   });
   items.sort((a,b)=>a.date.localeCompare(b.date));
-  return items.slice(0, limit||6);
+  const dates = [...new Set(items.map(i=>i.date))].slice(0, limit||8);
+  return dates.map(d=>({date:d, items: items.filter(i=>i.date===d)}));
 }
 function daysFromToday(iso){
   const d1 = new Date(todayISO()+'T00:00'), d2 = new Date(iso+'T00:00');
@@ -205,6 +206,32 @@ function toggleDone(id){
   const done = getDoneSet();
   if(done.has(id)) done.delete(id); else done.add(id);
   localStorage.setItem('shDoneItems', JSON.stringify([...done]));
+  renderCalendar();
+}
+function openQuickAddEvent(){
+  openModal(`<h3>Add to calendar</h3>
+    <div class="form-grid">
+      <input id="qa_ev_title" placeholder="Title">
+      <div class="two-col">
+        <input id="qa_ev_date" type="date" value="${todayISO()}">
+        <select id="qa_ev_type"><option value="event">Event</option><option value="due">Due</option><option value="project">Project</option></select>
+      </div>
+      <select id="qa_ev_subject"><option value="">General (not tied to a subject)</option>${S().subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
+      <textarea id="qa_ev_desc" placeholder="Description / instructions" rows="3"></textarea>
+      <button class="btn" onclick="quickAddEvent()">Add</button>
+    </div>`);
+}
+async function quickAddEvent(){
+  const title = document.getElementById('qa_ev_title').value.trim();
+  if(!title){ alert('Title required.'); return; }
+  await dbAddEvent(currentSchool, {
+    title, date: document.getElementById('qa_ev_date').value,
+    type: document.getElementById('qa_ev_type').value,
+    subject_id: document.getElementById('qa_ev_subject').value || null,
+    description: document.getElementById('qa_ev_desc').value
+  });
+  await refreshCurrentSchool();
+  closeModal();
   renderCalendar();
 }
 function renderCalendar(){
@@ -238,29 +265,33 @@ function renderCalendar(){
   <div class="cal-sidebar">
     <div class="cal-legend">
       <span class="tag">● Event</span><span class="tag due">● Due</span><span class="tag project">● Project</span>
+      <button class="btn-tag" onclick="openQuickAddEvent()">+ Add</button>
     </div>
     <div class="card cal-upcoming-card">
     <div class="section-label" style="margin-top:0;">Coming Up</div>
-    <div class="hub-list">`;
-  const upcoming = getUpcomingDue(6);
+    <div class="hub-list cal-upcoming-scroll">`;
+  const groups = getUpcomingDue(8);
   const done = getDoneSet();
-  if(upcoming.length===0){
+  if(groups.length===0){
     html += `<p style="color:var(--ink-soft);font-size:13px;">Nothing due soon.</p>`;
   } else {
-    upcoming.forEach(u=>{
-      const isDone = done.has(u.id);
-      html += `<div class="hub-row upcoming-row ${isDone?'is-done':''}">
-        <div class="hub-text" onclick="openDay('${u.date}')" style="cursor:pointer;">
-          <h4>${u.title}</h4>
-          <p>${u.subj?u.subj+' · ':''}${daysFromToday(u.date)} · ${u.date}</p>
-        </div>
-        <div class="upcoming-side">
-          <span class="tag ${u.type}" style="margin:0;">${u.type}</span>
-          <button class="check-btn ${isDone?'checked':''}" onclick="event.stopPropagation();toggleDone('${u.id}')" aria-label="Mark done">
-            <svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-        </div>
-      </div>`;
+    groups.forEach(g=>{
+      html += `<div class="section-label" style="margin-top:14px;">${daysFromToday(g.date)} · ${g.date}</div>`;
+      g.items.forEach(u=>{
+        const isDone = done.has(u.id);
+        html += `<div class="hub-row upcoming-row ${isDone?'is-done':''}">
+          <div class="hub-text" onclick="openDay('${u.date}')" style="cursor:pointer;">
+            <h4>${u.title}</h4>
+            <p>${u.subj?u.subj:'General'}</p>
+          </div>
+          <div class="upcoming-side">
+            <span class="tag ${u.type}" style="margin:0;">${u.type}</span>
+            <button class="check-btn ${isDone?'checked':''}" onclick="event.stopPropagation();toggleDone('${u.id}')" aria-label="Mark done">
+              <svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>`;
+      });
     });
   }
   html += `</div>
@@ -385,44 +416,144 @@ function fileRow(f, subLabel){
 /* =========================================================
    ACTIVITIES
 ========================================================= */
-let actSort = 'due';
-function renderActivities(){
-  let acts = [...S().activities];
-  if(actSort==='due') acts.sort((a,b)=>(a.due||'').localeCompare(b.due||''));
-  else if(actSort==='start') acts.sort((a,b)=>(a.start||'').localeCompare(b.start||''));
-  else if(actSort==='subject') acts.sort((a,b)=>{
-    const sa = S().subjects.find(s=>s.id===a.subjectId)?.name||'';
-    const sb = S().subjects.find(s=>s.id===b.subjectId)?.name||'';
-    return sa.localeCompare(sb);
-  });
-  let html = `<div class="filter-row">
-    <label>Sort by</label>
-    <select onchange="actSort=this.value;renderActivities()">
-      <option value="due" ${actSort==='due'?'selected':''}>Due date</option>
-      <option value="start" ${actSort==='start'?'selected':''}>Starting date</option>
-      <option value="subject" ${actSort==='subject'?'selected':''}>Subject</option>
-    </select>
-  </div>`;
-  if(acts.length===0) html += `<p style="color:var(--ink-soft);">No activities yet.</p>`;
-  acts.forEach(a=>{
-    const subj = S().subjects.find(s=>s.id===a.subjectId);
-    html += `<div class="act-item" onclick="openActivity('${a.id}')" style="cursor:pointer;">
-      <span class="tag ${a.type==='Assignment'?'':a.type==='Project'?'project':'due'}">${a.type}</span>
+let actSort = 'general';
+let showCompleted = false;
+function getCompletedSet(){
+  try{ return new Set(JSON.parse(localStorage.getItem('shCompletedActivities')||'[]')); }catch(e){ return new Set(); }
+}
+function toggleActivityDone(id){
+  const done = getCompletedSet();
+  if(done.has(id)) done.delete(id); else done.add(id);
+  localStorage.setItem('shCompletedActivities', JSON.stringify([...done]));
+  renderActivities();
+}
+function toggleShowCompleted(){ showCompleted = !showCompleted; renderActivities(); }
+
+function activityCard(a, isDone){
+  const subj = S().subjects.find(s=>s.id===a.subjectId);
+  const color = subj ? subj.color : 'var(--line)';
+  return `<div class="act-item ${isDone?'is-done':''}" style="border-left:4px solid ${color};">
+    <div class="act-item-body" onclick="openActivity('${a.id}')" style="cursor:pointer;">
+      ${a.image?`<img src="${a.image}" style="width:100%;max-height:130px;object-fit:cover;border-radius:10px;margin-bottom:8px;">`:''}
       <h4>${a.title}</h4>
-      <div class="meta">${subj?subj.name:''} · Starts ${a.start||'TBA'} · Due ${a.due||'TBA'}</div>
+      <div class="meta">${subj?subj.name:'General'} · Due ${a.due||'TBA'}</div>
       <div>${(a.tags||[]).map(t=>`<span class="tag">#${t}</span>`).join('')}</div>
-    </div>`;
+    </div>
+    <div class="act-item-side">
+      <span class="tag ${a.type==='Assignment'?'':a.type==='Project'?'project':'due'}">${a.type}</span>
+      <button class="check-btn ${isDone?'checked':''}" onclick="event.stopPropagation();toggleActivityDone('${a.id}')" aria-label="Mark completed">
+        <svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>`;
+}
+
+function openQuickAddActivity(){
+  openModal(`<h3>Add activity</h3>
+    <div class="form-grid">
+      <input id="qa_ac_title" placeholder="Title">
+      <select id="qa_ac_subject"><option value="">General (not tied to a subject)</option>${S().subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
+      <select id="qa_ac_type"><option>Assignment</option><option>Activity</option><option>Project</option></select>
+      <div class="two-col">
+        <div><label>Start</label><input id="qa_ac_start" type="date" value="${todayISO()}"></div>
+        <div><label>Due</label><input id="qa_ac_due" type="date" value="${todayISO()}"></div>
+      </div>
+      <textarea id="qa_ac_instr" placeholder="Instructions" rows="3"></textarea>
+      <input id="qa_ac_tags" placeholder="Tags, separated by $">
+      <input id="qa_ac_img" placeholder="Image URL (optional — direct image link)">
+      <button class="btn" onclick="quickAddActivity()">Add</button>
+    </div>`);
+}
+async function quickAddActivity(){
+  const title = document.getElementById('qa_ac_title').value.trim();
+  if(!title){ alert('Title required.'); return; }
+  const subjectId = document.getElementById('qa_ac_subject').value || null;
+  const type = document.getElementById('qa_ac_type').value;
+  const start = document.getElementById('qa_ac_start').value;
+  const due = document.getElementById('qa_ac_due').value;
+  const instructions = document.getElementById('qa_ac_instr').value;
+  const newId = await dbAddActivity(currentSchool, {
+    title, subject_id: subjectId, type, start_date: start, due_date: due,
+    instructions,
+    tags: document.getElementById('qa_ac_tags').value.split('$').map(t=>t.trim()).filter(Boolean),
+    image_url: document.getElementById('qa_ac_img').value.trim()
   });
+  if(newId) await dbSyncActivityCalendarEvents(currentSchool, newId, subjectId, title, type, start, due, instructions);
+  await refreshCurrentSchool();
+  closeModal();
+  renderActivities();
+}
+
+function renderActivities(){
+  const completed = getCompletedSet();
+  const acts = S().activities.filter(a=>!completed.has(a.id));
+  const doneActs = S().activities.filter(a=>completed.has(a.id));
+
+  let html = `<div class="filter-row" style="justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <label>Sort by</label>
+      <select onchange="actSort=this.value;renderActivities()">
+        <option value="general" ${actSort==='general'?'selected':''}>General</option>
+        <option value="due" ${actSort==='due'?'selected':''}>Due date</option>
+        <option value="subject" ${actSort==='subject'?'selected':''}>Subject</option>
+      </select>
+    </div>
+    <button class="btn-tag" onclick="openQuickAddActivity()">+ Add</button>
+  </div>
+  <div class="cal-legend" style="margin-bottom:18px;">
+    <span class="tag">● Assignment</span><span class="tag due">● Activity</span><span class="tag project">● Project</span>
+  </div>`;
+
+  if(acts.length===0){
+    html += `<p style="color:var(--ink-soft);">No activities yet.</p>`;
+  } else if(actSort==='due'){
+    const byDate = {};
+    acts.forEach(a=>{ const k=a.due||'No due date'; (byDate[k]=byDate[k]||[]).push(a); });
+    Object.keys(byDate).sort((a,b)=>a.localeCompare(b)).forEach(date=>{
+      html += `<div class="section-label">${date}</div>`;
+      byDate[date].sort((a,b)=>a.title.localeCompare(b.title)).forEach(a=> html += activityCard(a,false));
+    });
+  } else if(actSort==='subject'){
+    const bySubj = {};
+    acts.forEach(a=>{ const subj=S().subjects.find(s=>s.id===a.subjectId); const k=subj?subj.name:'General'; (bySubj[k]=bySubj[k]||[]).push(a); });
+    Object.keys(bySubj).sort((a,b)=>a.localeCompare(b)).forEach(name=>{
+      html += `<div class="section-label">${name}</div>`;
+      bySubj[name].sort((a,b)=>(a.due||'').localeCompare(b.due||'')).forEach(a=> html += activityCard(a,false));
+    });
+  } else { // general: subject-grouped, group order = earliest due within group, items sorted by due
+    const bySubj = {};
+    acts.forEach(a=>{ const subj=S().subjects.find(s=>s.id===a.subjectId); const k=subj?subj.name:'General'; (bySubj[k]=bySubj[k]||[]).push(a); });
+    const groupNames = Object.keys(bySubj);
+    groupNames.forEach(name=> bySubj[name].sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')));
+    groupNames.sort((a,b)=>{
+      const da = bySubj[a][0]?.due || '9999-99-99';
+      const db = bySubj[b][0]?.due || '9999-99-99';
+      return da.localeCompare(db);
+    });
+    groupNames.forEach(name=>{
+      html += `<div class="section-label">${name}</div>`;
+      bySubj[name].forEach(a=> html += activityCard(a,false));
+    });
+  }
+
+  html += `<button class="btn ghost sm" style="margin-top:20px;" onclick="toggleShowCompleted()">${showCompleted?'▾':'▸'} Completed School Works (${doneActs.length})</button>`;
+  if(showCompleted){
+    html += `<div style="margin-top:10px;">`;
+    if(doneActs.length===0) html += `<p style="color:var(--ink-soft);font-size:13px;">Nothing completed yet.</p>`;
+    doneActs.forEach(a=> html += activityCard(a,true));
+    html += `</div>`;
+  }
   document.getElementById('pageContent').innerHTML = html;
 }
 function openActivity(id){
   const a = S().activities.find(x=>x.id===id);
   const subj = S().subjects.find(s=>s.id===a.subjectId);
   openModal(`<h3>${a.title}</h3>
-    <p style="color:var(--ink-soft);font-size:13px;">${subj?subj.name:''} · ${a.type}</p>
+    <p style="color:var(--ink-soft);font-size:13px;">${subj?subj.name:'General'} · ${a.type}</p>
     <p><b>Starts:</b> ${a.start||'TBA'} &nbsp; <b>Due:</b> ${a.due||'TBA'}</p>
+    ${a.image?`<img src="${a.image}" style="max-width:100%;max-height:220px;object-fit:contain;border-radius:12px;margin:10px 0;display:block;">`:''}
     <p>${nl2br(a.instructions)}</p>
-    <div>${(a.tags||[]).map(t=>`<span class="tag">#${t}</span>`).join('')}</div>`);
+    <div>${(a.tags||[]).map(t=>`<span class="tag">#${t}</span>`).join('')}</div>`, subj?subj.color:null);
 }
 
 /* =========================================================
@@ -468,6 +599,7 @@ function renderReviewers(){
     <button class="rev-tab ${revMode==='flashcards'?'active':''}" onclick="revSetMode('flashcards')">Flashcards</button>
     <button class="rev-tab ${revMode==='quiz'?'active':''}" onclick="revSetMode('quiz')">Mock Quiz</button>
     <button class="rev-tab ${revMode==='pdf'?'active':''}" onclick="revSetMode('pdf')">Readable PDF</button>
+    <button class="rev-tab ${revMode==='books'?'active':''}" onclick="revSetMode('books')">PDF Books</button>
   </div>`;
 
   if(S().subjects.length===0){
@@ -487,6 +619,18 @@ function renderReviewers(){
     return;
   }
 
+  if(revMode==='books'){
+    const rows = [];
+    S().subjects.forEach(s=>{
+      (s.books||[]).forEach(b=> rows.push(fileRow({label:b.label + (b.author?` — ${b.author}`:''), type:'BOOK', url:b.url}, s.name)));
+    });
+    html += `<div class="section-label">PDF Books</div>`;
+    html += rows.length ? `<div class="hub-list">${rows.join('')}</div>`
+      : `<p style="color:var(--ink-soft);">No books added yet — add them via Admin → Subjects → PDF Books.</p>`;
+    document.getElementById('pageContent').innerHTML = html;
+    return;
+  }
+
   if(revMode==='flashcards'){
     if(revView==='list'){
       html += renderRevSubjectList('flashcards');
@@ -499,8 +643,9 @@ function renderReviewers(){
     if(s.flashcards.length===0){ html += `<p style="color:var(--ink-soft);">No flashcards yet for this subject.</p>`; }
     else{
       const c = s.flashcards[flashIdx % s.flashcards.length];
+      const imgHtml = (c.image && !flashFlipped) ? `<img src="${c.image}" style="max-width:100%;max-height:180px;border-radius:12px;margin-bottom:14px;object-fit:contain;">` : '';
       html += `<div class="flash-card ${flashFlipped?'is-flipped':''}" onclick="flashFlipped=!flashFlipped;renderReviewers()">
-        ${flashFlipped ? c.a : c.q}
+        <div style="display:flex;flex-direction:column;align-items:center;">${imgHtml}<div>${flashFlipped ? c.a : c.q}</div></div>
       </div>
       <div class="flash-nav">
         <button class="btn ghost" onclick="flashIdx=(flashIdx-1+${s.flashcards.length})%${s.flashcards.length};flashFlipped=false;renderReviewers()">‹ Prev</button>
@@ -612,6 +757,7 @@ function renderQuizActive(s){
     </div>
     <div class="card">
       <span class="tag">${q.difficulty||'Easy'}</span>
+      ${q.image?`<img src="${q.image}" style="max-width:100%;max-height:220px;border-radius:12px;margin-top:10px;object-fit:contain;display:block;">`:''}
       <div class="quiz-q" style="margin-top:10px;">${q.q}</div>
       ${q.choices.map((c,ci)=>`<button class="quiz-opt ${selected===ci?'selected':''}" onclick="selectQuizAnswer(${ci})">${c}</button>`).join('')}
     </div>
@@ -651,6 +797,7 @@ function renderQuizResults(s){
     const isCorrect = userAns===q.answer;
     html += `<div class="card" style="margin-bottom:10px;">
       <span class="tag ${isCorrect?'':'due'}">${isCorrect?'Correct':(userAns===null?'Skipped':'Incorrect')}</span>
+      ${q.image?`<img src="${q.image}" style="max-width:100%;max-height:180px;border-radius:12px;margin-top:8px;object-fit:contain;display:block;">`:''}
       <div class="quiz-q" style="margin-top:8px;font-size:14px;">${i+1}. ${q.q}</div>
       ${q.choices.map((c,ci)=>{
         let cls = '';
