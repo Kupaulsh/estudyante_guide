@@ -60,7 +60,7 @@ async function enterApp(school){
   document.getElementById('app').classList.add('active');
   setSchoolDotLogo(school);
   document.getElementById('topSchoolName').innerHTML = 'Loading… <span style="color:var(--ink-soft);font-weight:400;font-size:12px;">▾</span>';
-  document.getElementById('pageContent').innerHTML = `<p style="color:var(--ink-soft);">Loading ${school.toUpperCase()}…</p>`;
+  setPageContent(`<p style="color:var(--ink-soft);">Loading ${school.toUpperCase()}…</p>`);
 
   DATA[school] = await loadSchoolData(school);
 
@@ -161,12 +161,23 @@ function renderHub(){
     </div>`;
   });
   html += `</div>`;
-  document.getElementById('pageContent').innerHTML = html;
+  setPageContent(html);
 }
 
 /* =========================================================
    MODAL
 ========================================================= */
+function setPageContent(html){
+  document.getElementById('pageContent').innerHTML = html;
+  enforceAdminVisibility();
+}
+function enforceAdminVisibility(){
+  if(!isAdmin){
+    document.querySelectorAll('[data-admin-only]').forEach(el=>el.remove());
+  }
+  document.body.classList.toggle('is-admin', !!isAdmin);
+}
+
 function openModal(html, accentColor){
   const box = document.getElementById('modalBox');
   box.innerHTML = `<button class="modal-close" onclick="closeModal()">✕</button>${html}`;
@@ -301,7 +312,7 @@ function renderCalendar(){
   </div>
   </div>
   </div>`;
-  document.getElementById('pageContent').innerHTML = html;
+  setPageContent(html);
 }
 async function quickDeleteEvent(id){
   if(!confirm('Delete this calendar entry?')) return;
@@ -390,7 +401,7 @@ function renderSchedule(){
       ${isAdmin?`<button class="icon-btn danger" style="align-self:center;" onclick="event.stopPropagation();quickDeleteSubject('${r.subject.id}')" aria-label="Delete subject">✕</button>`:''}
     </div>`;
   });
-  document.getElementById('pageContent').innerHTML = html;
+  setPageContent(html);
 }
 async function quickDeleteSubject(id){
   if(!confirm('Delete this subject and all its schedule, syllabus, materials, flashcards, and quiz content?')) return;
@@ -415,7 +426,7 @@ function renderSubjects(){
     </div>`;
   });
   html += `</div>`;
-  document.getElementById('pageContent').innerHTML = html;
+  setPageContent(html);
 }
 function openSubject(id){
   const s = S().subjects.find(x=>x.id===id);
@@ -585,7 +596,7 @@ function renderActivities(){
     doneActs.forEach(a=> html += activityCard(a,true));
     html += `</div>`;
   }
-  document.getElementById('pageContent').innerHTML = html;
+  setPageContent(html);
 }
 function openActivity(id){
   const a = S().activities.find(x=>x.id===id);
@@ -705,7 +716,7 @@ function renderReviewers(){
   </div>`;
 
   if(S().subjects.length===0){
-    document.getElementById('pageContent').innerHTML = html + `<p style="color:var(--ink-soft);">No subjects yet.</p>`;
+    setPageContent(html + `<p style="color:var(--ink-soft);">No subjects yet.</p>`);
     return;
   }
 
@@ -717,7 +728,7 @@ function renderReviewers(){
     html += `<div class="section-label">Readable PDFs</div>`;
     html += rows.length ? `<div class="hub-list">${rows.join('')}</div>`
       : `<p style="color:var(--ink-soft);">No PDF materials linked yet — add them via Admin → Subjects → Materials (type: PDF).</p>`;
-    document.getElementById('pageContent').innerHTML = html;
+    setPageContent(html);
     return;
   }
 
@@ -729,14 +740,14 @@ function renderReviewers(){
     html += `<div class="section-label">PDF Books</div>`;
     html += rows.length ? `<div class="hub-list">${rows.join('')}</div>`
       : `<p style="color:var(--ink-soft);">No books added yet — add them via Admin → Subjects → PDF Books.</p>`;
-    document.getElementById('pageContent').innerHTML = html;
+    setPageContent(html);
     return;
   }
 
   if(revMode==='flashcards'){
     if(revView==='list'){
       html += renderRevSubjectList('flashcards');
-      document.getElementById('pageContent').innerHTML = html;
+      setPageContent(html);
       return;
     }
     const s = S().subjects.find(x=>x.id===revSubjectId);
@@ -755,21 +766,21 @@ function renderReviewers(){
         <button class="btn ghost" onclick="flashIdx=(flashIdx+1)%${s.flashcards.length};flashFlipped=false;renderReviewers()">Next ›</button>
       </div>`;
     }
-    document.getElementById('pageContent').innerHTML = html;
+    setPageContent(html);
     return;
   }
 
   // ---- Mock Quiz ----
   if(quizStage==='list'){
     html += renderRevSubjectList('quiz');
-    document.getElementById('pageContent').innerHTML = html;
+    setPageContent(html);
     return;
   }
   const s = S().subjects.find(x=>x.id===revSubjectId);
   if(quizStage==='setup') html += renderQuizSetup(s);
   else if(quizStage==='active') html += renderQuizActive(s);
   else if(quizStage==='results') html += renderQuizResults(s);
-  document.getElementById('pageContent').innerHTML = html;
+  setPageContent(html);
 }
 
 function renderRevSubjectList(mode){
@@ -937,7 +948,7 @@ function renderHowTo(){
     </div>`;
   });
   if(S().faqs.length===0) html += `<p style="color:var(--ink-soft);">No FAQs yet.</p>`;
-  document.getElementById('pageContent').innerHTML = html;
+  setPageContent(html);
 }
 function toggleFaq(i){ document.getElementById('faq-'+i).classList.toggle('open'); }
 function openHowToAdd(){
@@ -1018,7 +1029,7 @@ function renderRules(){
       html += rulesCard(RULES_ICONS.more, g.title, inner, actions);
     });
   }
-  document.getElementById('pageContent').innerHTML = html;
+  setPageContent(html);
 }
 function openRulesCoreEdit(){
   const r = S().rules;

@@ -98,6 +98,19 @@ a{color:var(--accent);}
 /* ---------- APP SHELL ---------- */
 #app{display:none;min-height:100vh;flex-direction:column;}
 #app.active{display:flex;}
+#adminBanner{
+  display:none;
+  background:var(--ink);color:#fff;font-size:12.5px;font-weight:600;
+  padding:10px 20px;align-items:center;justify-content:center;gap:14px;
+  text-align:center;
+}
+body.is-admin #adminBanner{display:flex;}
+#adminBanner button{
+  background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:20px;
+  padding:5px 14px;font-size:11.5px;font-weight:700;
+}
+#adminBanner button:hover{background:rgba(255,255,255,.28);}
+
 .topbar{
   position:sticky;top:0;z-index:20;
   background:rgba(246,245,240,.92);
