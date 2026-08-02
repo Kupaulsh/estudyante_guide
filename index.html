@@ -30,7 +30,7 @@
     </div>
   </div>
   <div class="landing-foot">
-    <button class="link-quiet" onclick="openAdminGate()">Admin</button>
+    <button class="link-quiet" onclick="openSignInModal()">Admin</button>
   </div>
 </div>
 
@@ -55,45 +55,6 @@
   <button id="gearBtn" onclick="toggleGear()" aria-label="Menu">
     <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.61l-1.92-3.32a.5.5 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.5.5 0 0 0-.59.22L2.68 8.87a.5.5 0 0 0 .12.61l2.03 1.58c-.05.3-.08.62-.08.94s.02.64.07.94l-2.03 1.58a.5.5 0 0 0-.12.61l1.92 3.32c.14.24.42.32.66.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .46-.18.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.24.1.51 0 .65-.22l1.92-3.32a.5.5 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
   </button>
-</div>
-
-<!-- ================= ADMIN GATE (Google sign-in) ================= -->
-<div id="adminGate" class="hidden">
-  <div class="card" style="max-width:400px;width:100%;">
-    <h2>Admin sign-in</h2>
-    <p style="font-size:12.5px;color:var(--ink-soft);">Sign in with the Google account that's on this project's admin list.</p>
-    <button class="btn" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-bottom:10px;" onclick="signInWithGoogle()">
-      <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.5-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.5 6 29.6 4 24 4c-7.7 0-14.3 4.4-17.7 10.7z"/><path fill="#4CAF50" d="M24 45c5.5 0 10.4-1.9 14.2-5.1l-6.6-5.4C29.6 36 26.9 37 24 37c-5.3 0-9.7-3.5-11.3-8.3l-6.6 5.1C9.6 40.5 16.2 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.6l6.6 5.4C39.9 37.4 43 31.1 43 24c0-1.4-.1-2.5-.4-3.5z"/></svg>
-      Sign in with Google
-    </button>
-    <p id="adminGateStatus" style="font-size:12px;color:var(--ink-soft);min-height:16px;"></p>
-    <button class="btn ghost" style="width:100%;" onclick="closeAdminGate()">Back</button>
-  </div>
-</div>
-
-<!-- ================= ADMIN PANEL ================= -->
-<div id="adminApp" class="hidden">
-  <div class="topbar">
-    <div class="who">
-      <div class="dot" style="background:var(--ink);">A</div>
-      <div>
-        <h2>Admin</h2>
-        <p id="adminUserEmail" style="font-size:11px;color:var(--ink-soft);margin:0;"></p>
-      </div>
-    </div>
-    <button class="switch" onclick="exitAdmin()">Exit admin</button>
-  </div>
-  <main style="padding-top:20px;">
-    <div class="filter-row" style="margin-bottom:14px;">
-      <label>Editing school:</label>
-      <select id="adminSchoolSel" onchange="switchAdminSchool()">
-        <option value="pccm">PCCM</option>
-        <option value="tup">TUP</option>
-      </select>
-    </div>
-    <div class="admin-tabs" id="adminTabs"></div>
-    <div id="adminBody"></div>
-  </main>
 </div>
 
 <!-- Modal -->

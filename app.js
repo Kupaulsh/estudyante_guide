@@ -84,15 +84,15 @@ function goLanding(){
 }
 function openSchoolMenu(){
   const other = currentSchool==='pccm' ? 'tup' : 'pccm';
-  const curName = currentSchool.toUpperCase();
   const otherName = other.toUpperCase();
   openModal(`
     <h3>${S().fullName}</h3>
-    <p style="font-size:12.5px;color:var(--ink-soft);">Switch schools or jump into admin.</p>
     <div class="form-grid">
       <button class="btn" onclick="closeModal();enterApp('${other}')">Switch to ${otherName}</button>
-      <button class="btn ghost" onclick="closeModal();openAdminGate('${currentSchool}')">Admin for ${curName}</button>
-      <button class="btn ghost" onclick="closeModal();openAdminGate('${other}')">Admin for ${otherName}</button>
+      ${isAdmin
+        ? `<button class="btn ghost" onclick="closeModal();openThemeModal()">Theme colors</button>
+           <button class="btn ghost" onclick="signOutAdmin();closeModal();">Exit admin</button>`
+        : `<button class="btn ghost" onclick="closeModal();openSignInModal()">Admin</button>`}
     </div>
   `);
 }
@@ -265,7 +265,7 @@ function renderCalendar(){
   <div class="cal-sidebar">
     <div class="cal-legend">
       <span class="tag">● Event</span><span class="tag due">● Due</span><span class="tag project">● Project</span>
-      <button class="btn-tag" onclick="openQuickAddEvent()">+ Add</button>
+      ${isAdmin?`<button class="btn-tag btn-tag-wide" onclick="openQuickAddEvent()">+ Add</button>`:''}
     </div>
     <div class="card cal-upcoming-card">
     <div class="section-label" style="margin-top:0;">Coming Up</div>
@@ -277,9 +277,9 @@ function renderCalendar(){
   } else {
     groups.forEach(g=>{
       html += `<div class="section-label" style="margin-top:14px;">${daysFromToday(g.date)} · ${g.date}</div>`;
-      g.items.forEach(u=>{
+      g.items.forEach((u,ui)=>{
         const isDone = done.has(u.id);
-        html += `<div class="hub-row upcoming-row ${isDone?'is-done':''}">
+        html += `<div class="hub-row upcoming-row ${isDone?'is-done':''} ${ui>0?'upcoming-divider':''}">
           <div class="hub-text" onclick="openDay('${u.date}')" style="cursor:pointer;">
             <h4>${u.title}</h4>
             <p>${u.subj?u.subj:'General'}</p>
@@ -289,6 +289,10 @@ function renderCalendar(){
             <button class="check-btn ${isDone?'checked':''}" onclick="event.stopPropagation();toggleDone('${u.id}')" aria-label="Mark done">
               <svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
+            ${isAdmin?`<div style="display:flex;gap:4px;">
+              <button class="icon-btn" onclick="event.stopPropagation();adminEditEvent('${u.id}')" aria-label="Edit">✎</button>
+              <button class="icon-btn danger" onclick="event.stopPropagation();quickDeleteEvent('${u.id}')" aria-label="Delete">✕</button>
+            </div>`:''}
           </div>
         </div>`;
       });
@@ -300,21 +304,39 @@ function renderCalendar(){
   </div>`;
   document.getElementById('pageContent').innerHTML = html;
 }
+async function quickDeleteEvent(id){
+  if(!confirm('Delete this calendar entry?')) return;
+  await dbDeleteEvent(id);
+  await refreshCurrentSchool();
+  renderCalendar();
+}
 function shiftMonth(n){ calCursor.setMonth(calCursor.getMonth()+n); renderCalendar(); }
 function openDay(iso){
   const evs = S().events.filter(e=>e.date===iso);
   let html = `<h3>${new Date(iso+'T00:00').toDateString()}</h3>`;
   if(evs.length===0){ html += `<p style="color:var(--ink-soft);">No events on this date.</p>`; }
-  evs.forEach(e=>{
+  evs.forEach((e,i)=>{
     const subj = S().subjects.find(s=>s.id===e.subjectId);
-    html += `<div style="margin-bottom:14px;">
-      <span class="tag ${e.type!=='event'?e.type:''}">${e.type}</span>
+    html += `<div style="margin-bottom:14px;${i>0?'padding-top:14px;border-top:1px solid var(--line);':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <span class="tag ${e.type!=='event'?e.type:''}">${e.type}</span>
+        ${isAdmin?`<div style="display:flex;gap:4px;">
+          <button class="icon-btn" onclick="closeModal();adminEditEvent('${e.id}')" aria-label="Edit">✎</button>
+          <button class="icon-btn danger" onclick="quickDeleteEventFromDay('${e.id}','${iso}')" aria-label="Delete">✕</button>
+        </div>`:''}
+      </div>
       <h4 style="margin-top:8px;">${e.title}</h4>
       ${subj?`<p style="font-size:12px;color:var(--ink-soft);margin:0 0 4px;">${subj.name}</p>`:''}
       <p>${nl2br(e.desc)}</p>
     </div>`;
   });
   openModal(html);
+}
+async function quickDeleteEventFromDay(id, iso){
+  if(!confirm('Delete this calendar entry?')) return;
+  await dbDeleteEvent(id);
+  await refreshCurrentSchool();
+  openDay(iso);
 }
 
 /* =========================================================
@@ -350,21 +372,32 @@ function renderSchedule(){
     return parseTimeStart(a.time)-parseTimeStart(b.time);
   });
   let html = '';
-  if(rows.length===0) html = `<p style="color:var(--ink-soft);">No schedule yet.</p>`;
+  if(isAdmin){
+    html += `<button class="btn" onclick="adminAddSubject()" style="margin-bottom:16px;">+ Add subject</button>`;
+  }
+  if(rows.length===0) html += `<p style="color:var(--ink-soft);">No schedule yet.</p>`;
   let lastDay = undefined;
   rows.forEach(r=>{
     if(r.day !== lastDay){ html += `<div class="section-label">${r.day||'Unscheduled'}</div>`; lastDay = r.day; }
-    html += `<div class="sched-item" onclick="openSubject('${r.subject.id}')" style="cursor:pointer;">
+    const clickAction = isAdmin ? `adminEditSubject('${r.subject.id}')` : `openSubject('${r.subject.id}')`;
+    html += `<div class="sched-item" onclick="${clickAction}" style="cursor:pointer;">
       <div class="sched-swatch" style="background:${r.subject.color}"></div>
       <div class="sched-time">${r.time||'TBA'}</div>
       <div class="sched-body">
         <h4>${r.subject.name}</h4>
         <p>${r.professor||'Professor TBA'} · Room ${r.room||'TBA'}</p>
-        <p>${r.subject.materials.length} material${r.subject.materials.length!==1?'s':''} · ${r.subject.syllabus.length} syllabus file${r.subject.syllabus.length!==1?'s':''}</p>
+        <p>${r.subject.materials.length} material${r.subject.materials.length!==1?'s':''} · ${r.subject.syllabus.length} syllabus file${r.subject.syllabus.length!==1?'s':''} · ${(r.subject.books||[]).length} book(s)</p>
       </div>
+      ${isAdmin?`<button class="icon-btn danger" style="align-self:center;" onclick="event.stopPropagation();quickDeleteSubject('${r.subject.id}')" aria-label="Delete subject">✕</button>`:''}
     </div>`;
   });
   document.getElementById('pageContent').innerHTML = html;
+}
+async function quickDeleteSubject(id){
+  if(!confirm('Delete this subject and all its schedule, syllabus, materials, flashcards, and quiz content?')) return;
+  await dbDeleteSubject(id);
+  await refreshCurrentSchool();
+  renderSchedule();
 }
 
 /* =========================================================
@@ -428,6 +461,12 @@ function toggleActivityDone(id){
   renderActivities();
 }
 function toggleShowCompleted(){ showCompleted = !showCompleted; renderActivities(); }
+async function quickDeleteActivity(id){
+  if(!confirm('Delete this activity?')) return;
+  await dbDeleteActivity(id);
+  await refreshCurrentSchool();
+  renderActivities();
+}
 
 function activityCard(a, isDone){
   const subj = S().subjects.find(s=>s.id===a.subjectId);
@@ -444,6 +483,10 @@ function activityCard(a, isDone){
       <button class="check-btn ${isDone?'checked':''}" onclick="event.stopPropagation();toggleActivityDone('${a.id}')" aria-label="Mark completed">
         <svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
+      ${isAdmin?`<div style="display:flex;gap:4px;">
+        <button class="icon-btn" onclick="event.stopPropagation();adminEditActivity('${a.id}')" aria-label="Edit">✎</button>
+        <button class="icon-btn danger" onclick="event.stopPropagation();quickDeleteActivity('${a.id}')" aria-label="Delete">✕</button>
+      </div>`:''}
     </div>
   </div>`;
 }
@@ -498,7 +541,7 @@ function renderActivities(){
         <option value="subject" ${actSort==='subject'?'selected':''}>Subject</option>
       </select>
     </div>
-    <button class="btn-tag" onclick="openQuickAddActivity()">+ Add</button>
+    ${isAdmin?`<button class="btn-tag" onclick="openQuickAddActivity()">+ Add</button>`:''}
   </div>
   <div class="cal-legend" style="margin-bottom:18px;">
     <span class="tag">● Assignment</span><span class="tag due">● Activity</span><span class="tag project">● Project</span>
@@ -594,16 +637,76 @@ function revBack(){
   renderReviewers();
 }
 
+function openReviewerAdd(){
+  const subjOpts = S().subjects.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  if(S().subjects.length===0){ alert('Add a subject first (Schedule page).'); return; }
+  let fields = '';
+  if(revMode==='flashcards'){
+    fields = `<input id="qa_fc_q" placeholder="Question">
+      <input id="qa_fc_a" placeholder="Answer">
+      <input id="qa_fc_img" placeholder="Image URL (optional)">`;
+  } else if(revMode==='quiz'){
+    fields = `<input id="qa_qz_q" placeholder="Question">
+      <input id="qa_qz_choices" placeholder="Choices, separated by $ (e.g. A $ B $ C $ D)">
+      <input id="qa_qz_answer" placeholder="Correct answer (must match one choice exactly)">
+      <select id="qa_qz_diff"><option>Easy</option><option>Average</option><option>Hard</option><option>Very Hard</option></select>
+      <input id="qa_qz_img" placeholder="Image URL (optional)">`;
+  } else if(revMode==='pdf'){
+    fields = `<input id="qa_mat_label" placeholder="Label (e.g. Week 1 Notes)">
+      <input id="qa_mat_type" value="PDF" placeholder="Type">
+      <input id="qa_mat_url" placeholder="Link (Google Drive URL)">`;
+  } else if(revMode==='books'){
+    fields = `<input id="qa_bk_label" placeholder="Book title">
+      <input id="qa_bk_author" placeholder="Author (optional)">
+      <input id="qa_bk_url" placeholder="Link (Google Drive URL)">`;
+  }
+  openModal(`<h3>Add ${revMode==='flashcards'?'flashcard':revMode==='quiz'?'quiz question':revMode==='pdf'?'PDF material':'book'}</h3>
+    <div class="form-grid">
+      <select id="qa_rev_subject">${subjOpts}</select>
+      ${fields}
+      <button class="btn" onclick="quickAddReviewerItem()">Add</button>
+    </div>`);
+}
+async function quickAddReviewerItem(){
+  const subjId = document.getElementById('qa_rev_subject').value;
+  if(revMode==='flashcards'){
+    const q = document.getElementById('qa_fc_q').value.trim();
+    const a = document.getElementById('qa_fc_a').value.trim();
+    if(!q||!a){alert('Fill both fields.');return;}
+    await dbAddFlashcard(subjId, q, a, document.getElementById('qa_fc_img').value.trim());
+  } else if(revMode==='quiz'){
+    const q = document.getElementById('qa_qz_q').value.trim();
+    const choices = document.getElementById('qa_qz_choices').value.split('$').map(c=>c.trim()).filter(Boolean);
+    const answerIdx = choices.indexOf(document.getElementById('qa_qz_answer').value.trim());
+    if(!q||choices.length<2||answerIdx===-1){ alert('Fill all fields; correct answer must exactly match one choice.'); return; }
+    await dbAddQuiz(subjId, q, choices, answerIdx, document.getElementById('qa_qz_diff').value, document.getElementById('qa_qz_img').value.trim());
+  } else if(revMode==='pdf'){
+    const label = document.getElementById('qa_mat_label').value.trim();
+    const url = document.getElementById('qa_mat_url').value.trim();
+    if(!label||!url){alert('Label and link are required.');return;}
+    await dbAddFile('materials', subjId, label, document.getElementById('qa_mat_type').value.trim(), url);
+  } else if(revMode==='books'){
+    const label = document.getElementById('qa_bk_label').value.trim();
+    const url = document.getElementById('qa_bk_url').value.trim();
+    if(!label||!url){alert('Title and link are required.');return;}
+    await dbAddBook(subjId, label, document.getElementById('qa_bk_author').value.trim(), url);
+  }
+  await refreshCurrentSchool();
+  closeModal();
+  renderReviewers();
+}
+
 function renderReviewers(){
   let html = `<div class="rev-tabs">
     <button class="rev-tab ${revMode==='flashcards'?'active':''}" onclick="revSetMode('flashcards')">Flashcards</button>
     <button class="rev-tab ${revMode==='quiz'?'active':''}" onclick="revSetMode('quiz')">Mock Quiz</button>
+    ${isAdmin?`<button class="btn-tag" onclick="openReviewerAdd()">+ Add</button>`:''}
     <button class="rev-tab ${revMode==='pdf'?'active':''}" onclick="revSetMode('pdf')">Readable PDF</button>
     <button class="rev-tab ${revMode==='books'?'active':''}" onclick="revSetMode('books')">PDF Books</button>
   </div>`;
 
   if(S().subjects.length===0){
-    document.getElementById('pageContent').innerHTML = html + `<p style="color:var(--ink-soft);">No subjects yet — add some via Admin.</p>`;
+    document.getElementById('pageContent').innerHTML = html + `<p style="color:var(--ink-soft);">No subjects yet.</p>`;
     return;
   }
 
@@ -820,27 +923,60 @@ function renderQuizResults(s){
    HOW-TO (FAQ)
 ========================================================= */
 function renderHowTo(){
-  let html = '';
+  let html = isAdmin ? `<button class="btn" onclick="openHowToAdd()" style="margin-bottom:16px;">+ Add FAQ</button>` : '';
   S().faqs.forEach((f,i)=>{
     html += `<div class="faq-item" id="faq-${i}">
-      <div class="faq-q" onclick="toggleFaq(${i})"><span>${f.q}</span><span>+</span></div>
+      <div class="faq-q" onclick="toggleFaq(${i})" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>${f.q}</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${isAdmin?`<button class="icon-btn" onclick="event.stopPropagation();adminEditFaq('${f.id}')" aria-label="Edit">✎</button>
+          <button class="icon-btn danger" onclick="event.stopPropagation();quickDeleteFaq('${f.id}')" aria-label="Delete">✕</button>`:''}
+          <span>+</span>
+        </div>
+      </div>
       <div class="faq-a">${nl2br(f.a)}</div>
     </div>`;
   });
-  if(S().faqs.length===0) html = `<p style="color:var(--ink-soft);">No FAQs yet.</p>`;
+  if(S().faqs.length===0) html += `<p style="color:var(--ink-soft);">No FAQs yet.</p>`;
   document.getElementById('pageContent').innerHTML = html;
 }
 function toggleFaq(i){ document.getElementById('faq-'+i).classList.toggle('open'); }
+function openHowToAdd(){
+  openModal(`<h3>Add FAQ</h3>
+    <div class="form-grid">
+      <input id="qa_fq_q" placeholder="Question">
+      <textarea id="qa_fq_a" placeholder="Answer" rows="3"></textarea>
+      <button class="btn" onclick="quickAddFaq()">Add</button>
+    </div>`);
+}
+async function quickAddFaq(){
+  const q = document.getElementById('qa_fq_q').value.trim();
+  const a = document.getElementById('qa_fq_a').value.trim();
+  if(!q||!a){alert('Fill both fields.');return;}
+  await dbAddFaq(currentSchool, q, a);
+  await refreshCurrentSchool();
+  closeModal();
+  renderHowTo();
+}
+async function quickDeleteFaq(id){
+  if(!confirm('Delete this FAQ?')) return;
+  await dbDeleteFaq(id);
+  await refreshCurrentSchool();
+  renderHowTo();
+}
 
 /* =========================================================
    RULES AND OTHERS
 ========================================================= */
 function nl2br(s){ return (s||'').replace(/\n/g, '<br>'); }
-function rulesCard(icon, title, innerHtml){
+function rulesCard(icon, title, innerHtml, actionsHtml){
   return `<div class="rules-card">
-    <div class="rules-card-head">
-      <div class="rules-card-icon"><svg viewBox="0 0 24 24">${icon}</svg></div>
-      <h3>${title}</h3>
+    <div class="rules-card-head" style="justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="rules-card-icon"><svg viewBox="0 0 24 24">${icon}</svg></div>
+        <h3>${title}</h3>
+      </div>
+      ${actionsHtml||''}
     </div>
     ${innerHtml}
   </div>`;
@@ -855,10 +991,12 @@ const RULES_ICONS = {
 
 function renderRules(){
   const r = S().rules;
-  let html = rulesCard(RULES_ICONS.vision, 'Vision', `<p>${nl2br(r.vision)||'Not set yet.'}</p>`);
-  html += rulesCard(RULES_ICONS.mission, 'Mission', `<p>${nl2br(r.mission)||'Not set yet.'}</p>`);
-  html += rulesCard(RULES_ICONS.preamble, 'Preamble', `<p>${nl2br(r.preamble)||'Not set yet.'}</p>`);
-  html += rulesCard(RULES_ICONS.values, 'Core Values', `<div class="core-values">${r.coreValues.map(v=>`<div>${v}</div>`).join('') || '<p style="color:var(--ink-soft);">Not set yet.</p>'}</div>`);
+  const coreActions = isAdmin ? `<button class="icon-btn" onclick="openRulesCoreEdit()" aria-label="Edit">✎</button>` : '';
+  let html = isAdmin ? `<button class="btn" onclick="openRulesSectionAdd()" style="margin-bottom:16px;">+ Add section</button>` : '';
+  html += rulesCard(RULES_ICONS.vision, 'Vision', `<p>${nl2br(r.vision)||'Not set yet.'}</p>`, coreActions);
+  html += rulesCard(RULES_ICONS.mission, 'Mission', `<p>${nl2br(r.mission)||'Not set yet.'}</p>`, coreActions);
+  html += rulesCard(RULES_ICONS.preamble, 'Preamble', `<p>${nl2br(r.preamble)||'Not set yet.'}</p>`, coreActions);
+  html += rulesCard(RULES_ICONS.values, 'Core Values', `<div class="core-values">${r.coreValues.map(v=>`<div>${v}</div>`).join('') || '<p style="color:var(--ink-soft);">Not set yet.</p>'}</div>`, coreActions);
 
   if(r.guidelines.length===0){
     html += rulesCard(RULES_ICONS.more, 'More Sections', `<p style="color:var(--ink-soft);">Not set yet.</p>`);
@@ -871,8 +1009,57 @@ function renderRules(){
       } else {
         inner = `<p>${nl2br(g.body)}</p>`;
       }
-      html += rulesCard(RULES_ICONS.more, g.title, inner);
+      const actions = isAdmin ? `<div style="display:flex;gap:4px;">
+        <button class="icon-btn" onclick="adminEditGuideline('${g.id}')" aria-label="Edit">✎</button>
+        <button class="icon-btn danger" onclick="quickDeleteGuideline('${g.id}')" aria-label="Delete">✕</button>
+      </div>` : '';
+      html += rulesCard(RULES_ICONS.more, g.title, inner, actions);
     });
   }
   document.getElementById('pageContent').innerHTML = html;
+}
+function openRulesCoreEdit(){
+  const r = S().rules;
+  openModal(`<h3>Edit Vision, Mission, Preamble & Core Values</h3>
+    <div class="form-grid">
+      <div><label>Vision</label><textarea id="qa_r_vision" rows="2">${r.vision}</textarea></div>
+      <div><label>Mission</label><textarea id="qa_r_mission" rows="2">${r.mission}</textarea></div>
+      <div><label>Preamble</label><textarea id="qa_r_preamble" rows="2">${r.preamble}</textarea></div>
+      <div><label>Core Values (separated by $)</label><input id="qa_r_values" value="${(r.coreValues.join(' $ ')||'').replace(/"/g,'&quot;')}"></div>
+      <button class="btn" onclick="quickSaveRulesCore()">Save</button>
+    </div>`);
+}
+async function quickSaveRulesCore(){
+  await dbSaveRules(currentSchool, {
+    vision: document.getElementById('qa_r_vision').value,
+    mission: document.getElementById('qa_r_mission').value,
+    preamble: document.getElementById('qa_r_preamble').value,
+    core_values: document.getElementById('qa_r_values').value.split('$').map(v=>v.trim()).filter(Boolean)
+  });
+  await refreshCurrentSchool();
+  closeModal();
+  renderRules();
+}
+function openRulesSectionAdd(){
+  openModal(`<h3>Add section</h3>
+    <div class="form-grid">
+      <input id="qa_g_title" placeholder="Section title (e.g. University Hymn, Strategic Goals)">
+      <textarea id="qa_g_body" placeholder="Content — or separate items with $ to show as chips" rows="3"></textarea>
+      <button class="btn" onclick="quickAddSection()">Add</button>
+    </div>`);
+}
+async function quickAddSection(){
+  const title = document.getElementById('qa_g_title').value.trim();
+  const body = document.getElementById('qa_g_body').value.trim();
+  if(!title||!body){alert('Fill both fields.');return;}
+  await dbAddGuideline(currentSchool, title, body);
+  await refreshCurrentSchool();
+  closeModal();
+  renderRules();
+}
+async function quickDeleteGuideline(id){
+  if(!confirm('Delete this section?')) return;
+  await dbDeleteGuideline(id);
+  await refreshCurrentSchool();
+  renderRules();
 }

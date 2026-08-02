@@ -1,68 +1,56 @@
 /* =========================================================
    ADMIN AUTH (Supabase Auth + Google, checked against `admins` table)
+   No separate admin panel — controls appear inline on each page
+   once isAdmin is true.
 ========================================================= */
-let adminSchool = 'pccm';
-let adminTab = 'subjects';
+let isAdmin = false;
+let adminEmail = '';
 
-function openAdminGate(presetSchool){
-  sessionStorage.setItem('shAdminPendingSchool', presetSchool || 'pccm');
-  document.getElementById('landing').style.display='none';
-  document.getElementById('app').classList.remove('active');
-  document.getElementById('gearNav').style.display='none';
-  closeGear();
-  document.getElementById('adminGate').classList.remove('hidden');
-  setAdminGateStatus('');
+function openSignInModal(){
+  sessionStorage.setItem('shAdminPending', '1');
+  openModal(`<h3>Admin sign-in</h3>
+    <p style="font-size:12.5px;color:var(--ink-soft);">Sign in with the Google account that's on this project's admin list.</p>
+    <button class="btn" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-bottom:10px;" onclick="signInWithGoogle()">
+      <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.5-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.5 6 29.6 4 24 4c-7.7 0-14.3 4.4-17.7 10.7z"/><path fill="#4CAF50" d="M24 45c5.5 0 10.4-1.9 14.2-5.1l-6.6-5.4C29.6 36 26.9 37 24 37c-5.3 0-9.7-3.5-11.3-8.3l-6.6 5.1C9.6 40.5 16.2 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.6l6.6 5.4C39.9 37.4 43 31.1 43 24c0-1.4-.1-2.5-.4-3.5z"/></svg>
+      Sign in with Google
+    </button>
+    <p id="signInStatus" style="font-size:12px;color:var(--ink-soft);min-height:16px;"></p>`);
 }
-function closeAdminGate(){
-  sessionStorage.removeItem('shAdminPendingSchool');
-  document.getElementById('adminGate').classList.add('hidden');
-  document.getElementById('landing').style.display='flex';
-}
-function setAdminGateStatus(msg){
-  const el = document.getElementById('adminGateStatus');
+function setSignInStatus(msg){
+  const el = document.getElementById('signInStatus');
   if(el) el.textContent = msg;
 }
 async function signInWithGoogle(){
-  setAdminGateStatus('Redirecting to Google…');
+  setSignInStatus('Redirecting to Google…');
   const {error} = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: window.location.href.split('#')[0].split('?')[0] }
   });
-  if(error) setAdminGateStatus('Sign-in error: ' + error.message);
-  // On success the browser navigates away to Google and back — nothing else to do here.
+  if(error) setSignInStatus('Sign-in error: ' + error.message);
 }
 async function checkAdminSession(){
   const {data:{session}} = await supabase.auth.getSession();
   if(!session) return;
-  const pending = sessionStorage.getItem('shAdminPendingSchool');
-  if(!pending) return; // signed in, but not currently trying to reach Admin
+  const pending = sessionStorage.getItem('shAdminPending');
 
-  const {data:isAdmin, error} = await supabase.rpc('is_admin');
-  if(error){ setAdminGateStatus('Error checking admin status: ' + error.message); return; }
+  const {data:isAdminResult, error} = await supabase.rpc('is_admin');
+  if(error){ if(pending) setSignInStatus('Error checking admin status: ' + error.message); return; }
 
-  if(isAdmin){
-    sessionStorage.removeItem('shAdminPendingSchool');
-    await enterAdminApp(pending, session.user.email);
-  } else {
-    document.getElementById('landing').style.display='none';
-    document.getElementById('adminGate').classList.remove('hidden');
-    setAdminGateStatus(`Signed in as ${session.user.email}, but this account isn't on the admin list. Add this email to the "admins" table in Supabase, then try again.`);
+  if(isAdminResult){
+    sessionStorage.removeItem('shAdminPending');
+    isAdmin = true;
+    adminEmail = session.user.email;
+    closeModal();
+    if(currentSchool) goPage(currentPage);
+  } else if(pending){
+    setSignInStatus(`Signed in as ${session.user.email}, but this account isn't on the admin list. Add this email to the "admins" table in Supabase, then try again.`);
   }
 }
-async function enterAdminApp(school, email){
-  document.getElementById('adminGate').classList.add('hidden');
-  document.getElementById('adminApp').classList.remove('hidden');
-  adminSchool = school;
-  document.getElementById('adminSchoolSel').value = school;
-  const emailEl = document.getElementById('adminUserEmail');
-  if(emailEl) emailEl.textContent = email;
-  DATA[school] = await loadSchoolData(school);
-  renderAdmin();
-}
-async function exitAdmin(){
+async function signOutAdmin(){
   await supabase.auth.signOut();
-  document.getElementById('adminApp').classList.add('hidden');
-  document.getElementById('landing').style.display='flex';
+  isAdmin = false;
+  adminEmail = '';
+  if(currentSchool) goPage(currentPage);
 }
 
 // Fires on load (existing session) and right after the Google redirect comes back.
@@ -71,34 +59,10 @@ supabase.auth.onAuthStateChange((event, session)=>{
 });
 checkAdminSession();
 
-/* =========================================================
-   ADMIN PANEL
-========================================================= */
-const ADMIN_TABS = ['subjects','reviewers','events','activities','faqs','rules','theme'];
-
-async function refreshAdminData(){
-  DATA[adminSchool] = await loadSchoolData(adminSchool);
-}
-async function switchAdminSchool(){
-  adminSchool = document.getElementById('adminSchoolSel').value;
-  await refreshAdminData();
-  renderAdmin();
-}
-
-function renderAdmin(){
-  document.getElementById('adminTabs').innerHTML = ADMIN_TABS.map(t=>
-    `<button class="admin-tab ${adminTab===t?'active':''}" onclick="adminTab='${t}';renderAdmin()">${t[0].toUpperCase()+t.slice(1)}</button>`
-  ).join('');
-  const body = document.getElementById('adminBody');
-  const D = DATA[adminSchool];
-  if(!D){ body.innerHTML = `<p style="color:var(--ink-soft);">Loading…</p>`; return; }
-  if(adminTab==='subjects') body.innerHTML = adminSubjects(D);
-  if(adminTab==='reviewers') body.innerHTML = adminReviewers(D);
-  if(adminTab==='events') body.innerHTML = adminEvents(D);
-  if(adminTab==='activities') body.innerHTML = adminActivities(D);
-  if(adminTab==='faqs') body.innerHTML = adminFaqs(D);
-  if(adminTab==='rules') body.innerHTML = adminRules(D);
-  if(adminTab==='theme') body.innerHTML = adminTheme(D);
+// Common refresh-then-rerender used after every save/delete
+async function adminRefreshAndRerender(){
+  await refreshCurrentSchool();
+  goPage(currentPage);
 }
 
 /* ---- Subjects admin ---- */
@@ -121,19 +85,19 @@ function adminSubjects(D){
   return html;
 }
 async function adminAddSubject(){
-  const newId = await dbAddSubject(adminSchool);
-  await refreshAdminData();
-  renderAdmin();
+  const newId = await dbAddSubject(currentSchool);
+  await refreshCurrentSchool();
+  goPage(currentPage);
   if(newId) adminEditSubject(newId);
 }
 async function adminDeleteSubject(id){
   if(!confirm('Delete this subject and all its content?')) return;
   await dbDeleteSubject(id);
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
 }
 function adminEditSubject(id){
-  const D = DATA[adminSchool];
+  const D = DATA[currentSchool];
   const s = D.subjects.find(x=>x.id===id);
   let html = `<h3>Edit subject</h3>
   <div class="form-grid">
@@ -191,12 +155,12 @@ async function adminAddBook(subjId){
   const url = document.getElementById(`bk_url_${subjId}`).value.trim();
   if(!label || !url){ alert('Title and link are required.'); return; }
   await dbAddBook(subjId, label, author, url);
-  await refreshAdminData();
+  await refreshCurrentSchool();
   adminEditSubject(subjId);
 }
 async function adminDeleteBook(subjId, bookId){
   await dbDeleteBook(bookId);
-  await refreshAdminData();
+  await refreshCurrentSchool();
   adminEditSubject(subjId);
 }
 function adminScheduleList(slots, subjId){
@@ -209,12 +173,12 @@ async function adminAddScheduleSlot(subjId){
   const professor = document.getElementById(`sc_prof_${subjId}`).value.trim();
   const room = document.getElementById(`sc_room_${subjId}`).value.trim();
   await dbAddScheduleSlot(subjId, day, time, room, professor);
-  await refreshAdminData();
+  await refreshCurrentSchool();
   adminEditSubject(subjId);
 }
 async function adminDeleteScheduleSlot(subjId, slotId){
   await dbDeleteScheduleSlot(slotId);
-  await refreshAdminData();
+  await refreshCurrentSchool();
   adminEditSubject(subjId);
 }
 function adminFileList(list, table, subjId){
@@ -237,12 +201,12 @@ async function adminAddFile(table, subjId){
   const url = document.getElementById(`${table}_url_${subjId}`).value.trim();
   if(!label || !url){ alert('Label and link are required.'); return; }
   await dbAddFile(table, subjId, label, type, url);
-  await refreshAdminData();
+  await refreshCurrentSchool();
   adminEditSubject(subjId);
 }
 async function adminDeleteFile(table, fileId, subjId){
   await dbDeleteFile(table, fileId);
-  await refreshAdminData();
+  await refreshCurrentSchool();
   adminEditSubject(subjId);
 }
 async function adminSaveSubject(id){
@@ -251,8 +215,8 @@ async function adminSaveSubject(id){
     code: document.getElementById('f_code').value,
     color: document.getElementById('f_color').value
   });
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
   closeModal();
 }
 
@@ -272,7 +236,7 @@ function adminReviewers(D){
   return html;
 }
 function adminEditReviewer(id){
-  const D = DATA[adminSchool];
+  const D = DATA[currentSchool];
   const s = D.subjects.find(x=>x.id===id);
   const html = `<h3>Reviewers — ${s.name}</h3>
 
@@ -305,12 +269,12 @@ async function adminAddFlash(subjId){
   const img = document.getElementById('fc_img').value.trim();
   if(!q||!a){alert('Fill both fields.');return;}
   await dbAddFlashcard(subjId, q, a, img);
-  await refreshAdminData();
+  await refreshCurrentSchool();
   adminEditReviewer(subjId);
 }
 async function adminDeleteFlash(subjId, flashId){
   await dbDeleteFlashcard(flashId);
-  await refreshAdminData();
+  await refreshCurrentSchool();
   adminEditReviewer(subjId);
 }
 async function adminAddQuiz(subjId){
@@ -322,12 +286,12 @@ async function adminAddQuiz(subjId){
   const answerIdx = choices.indexOf(answerText);
   if(!q||choices.length<2||answerIdx===-1){ alert('Fill all fields; correct answer must exactly match one choice.'); return; }
   await dbAddQuiz(subjId, q, choices, answerIdx, diff, img);
-  await refreshAdminData();
+  await refreshCurrentSchool();
   adminEditReviewer(subjId);
 }
 async function adminDeleteQuiz(subjId, quizId){
   await dbDeleteQuiz(quizId);
-  await refreshAdminData();
+  await refreshCurrentSchool();
   adminEditReviewer(subjId);
 }
 
@@ -356,16 +320,16 @@ function adminEvents(D){
 async function adminAddEvent(){
   const title = document.getElementById('ev_title').value.trim();
   if(!title){alert('Title required.');return;}
-  await dbAddEvent(adminSchool, {
+  await dbAddEvent(currentSchool, {
     title, date: document.getElementById('ev_date').value, type: document.getElementById('ev_type').value,
     subject_id: document.getElementById('ev_subject').value || null,
     description: document.getElementById('ev_desc').value
   });
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
 }
 function adminEditEvent(id){
-  const D = DATA[adminSchool];
+  const D = DATA[currentSchool];
   const e = D.events.find(x=>x.id===id);
   const html = `<h3>Edit event</h3>
   <div class="form-grid">
@@ -395,14 +359,14 @@ async function adminSaveEvent(id){
     subject_id: document.getElementById('ev_subject_edit').value || null,
     description: document.getElementById('ev_desc_edit').value
   });
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
   closeModal();
 }
 async function adminDeleteEvent(id){
   await dbDeleteEvent(id);
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
 }
 
 /* ---- Activities admin ---- */
@@ -421,16 +385,16 @@ function adminActivities(D){
   return html;
 }
 async function adminAddActivity(){
-  const newId = await dbAddActivity(adminSchool, {
+  const newId = await dbAddActivity(currentSchool, {
     title: 'New Activity', type: 'Assignment', start_date: todayISO(), due_date: todayISO(),
     instructions: '', tags: []
   });
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
   if(newId) adminEditActivity(newId);
 }
 function adminEditActivity(id){
-  const D = DATA[adminSchool];
+  const D = DATA[currentSchool];
   const a = D.activities.find(x=>x.id===id);
   const html = `<h3>Edit activity</h3>
   <div class="form-grid">
@@ -467,23 +431,23 @@ async function adminSaveActivity(id){
     tags: document.getElementById('ac_tags_edit').value.split('$').map(t=>t.trim()).filter(Boolean),
     image_url: document.getElementById('ac_img_edit').value.trim()
   });
-  await dbSyncActivityCalendarEvents(adminSchool, id, subjectId, title, type, start, due, instructions);
-  await refreshAdminData();
-  renderAdmin();
+  await dbSyncActivityCalendarEvents(currentSchool, id, subjectId, title, type, start, due, instructions);
+  await refreshCurrentSchool();
+  goPage(currentPage);
   closeModal();
 }
 async function adminDeleteActivity(id){
   await dbDeleteActivity(id);
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
 }
 async function adminResyncAllActivities(){
-  const D = DATA[adminSchool];
+  const D = DATA[currentSchool];
   for(const a of D.activities){
-    await dbSyncActivityCalendarEvents(adminSchool, a.id, a.subjectId, a.title, a.type, a.start, a.due, a.instructions);
+    await dbSyncActivityCalendarEvents(currentSchool, a.id, a.subjectId, a.title, a.type, a.start, a.due, a.instructions);
   }
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
   alert('Calendar synced for all activities.');
 }
 
@@ -507,12 +471,12 @@ async function adminAddFaq(){
   const q = document.getElementById('fq_q').value.trim();
   const a = document.getElementById('fq_a').value.trim();
   if(!q||!a){alert('Fill both fields.');return;}
-  await dbAddFaq(adminSchool, q, a);
-  await refreshAdminData();
-  renderAdmin();
+  await dbAddFaq(currentSchool, q, a);
+  await refreshCurrentSchool();
+  goPage(currentPage);
 }
 function adminEditFaq(id){
-  const D = DATA[adminSchool];
+  const D = DATA[currentSchool];
   const f = D.faqs.find(x=>x.id===id);
   openModal(`<h3>Edit FAQ</h3>
     <div class="form-grid">
@@ -526,14 +490,14 @@ async function adminSaveFaq(id){
   const a = document.getElementById('fq_a_edit').value.trim();
   if(!q||!a){alert('Fill both fields.');return;}
   await dbUpdateFaq(id, q, a);
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
   closeModal();
 }
 async function adminDeleteFaq(id){
   await dbDeleteFaq(id);
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
 }
 
 /* ---- Rules admin ---- */
@@ -566,25 +530,25 @@ function adminRules(D){
   return html;
 }
 async function adminSaveRules(){
-  await dbSaveRules(adminSchool, {
+  await dbSaveRules(currentSchool, {
     vision: document.getElementById('r_vision').value,
     mission: document.getElementById('r_mission').value,
     preamble: document.getElementById('r_preamble').value,
     core_values: document.getElementById('r_values').value.split('$').map(v=>v.trim()).filter(Boolean)
   });
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
 }
 async function adminAddGuideline(){
   const title = document.getElementById('g_title').value.trim();
   const body = document.getElementById('g_body').value.trim();
   if(!title||!body){alert('Fill both fields.');return;}
-  await dbAddGuideline(adminSchool, title, body);
-  await refreshAdminData();
-  renderAdmin();
+  await dbAddGuideline(currentSchool, title, body);
+  await refreshCurrentSchool();
+  goPage(currentPage);
 }
 function adminEditGuideline(id){
-  const D = DATA[adminSchool];
+  const D = DATA[currentSchool];
   const g = D.rules.guidelines.find(x=>x.id===id);
   openModal(`<h3>Edit section</h3>
     <div class="form-grid">
@@ -598,50 +562,51 @@ async function adminSaveGuideline(id){
   const body = document.getElementById('g_body_edit').value.trim();
   if(!title||!body){alert('Fill both fields.');return;}
   await dbUpdateGuideline(id, title, body);
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
   closeModal();
 }
 async function adminDeleteGuideline(id){
   await dbDeleteGuideline(id);
-  await refreshAdminData();
-  renderAdmin();
+  await refreshCurrentSchool();
+  goPage(currentPage);
 }
 
 /* ---- Theme admin ---- */
-function adminTheme(D){
-  return `
-    <div class="card">
-      <h3>Colors for ${D.fullName}</h3>
-      <p style="color:var(--ink-soft);font-size:12.5px;">These apply site-wide whenever someone is viewing this school. Changes save immediately and preview here too.</p>
-      <div class="two-col" style="margin-top:16px;max-width:320px;">
-        <div>
-          <label>Accent color</label>
-          <input id="th_accent" type="color" value="${D.accentColor}" style="height:44px;">
-        </div>
-        <div>
-          <label>Background color</label>
-          <input id="th_bg" type="color" value="${D.bgColor}" style="height:44px;">
-        </div>
+function openThemeModal(){
+  const D = DATA[currentSchool];
+  openModal(`
+    <h3>Colors for ${D.fullName}</h3>
+    <p style="color:var(--ink-soft);font-size:12.5px;">These apply site-wide whenever someone is viewing this school. Changes save immediately and preview here too.</p>
+    <div class="two-col" style="margin-top:16px;max-width:320px;">
+      <div>
+        <label>Accent color</label>
+        <input id="th_accent" type="color" value="${D.accentColor}" style="height:44px;">
       </div>
-      <button class="btn" style="margin-top:18px;" onclick="adminSaveTheme()">Save colors</button>
-      <button class="btn ghost" style="margin-top:18px;" onclick="adminResetTheme()">Reset to default</button>
+      <div>
+        <label>Background color</label>
+        <input id="th_bg" type="color" value="${D.bgColor}" style="height:44px;">
+      </div>
     </div>
-  `;
+    <button class="btn" style="margin-top:18px;" onclick="adminSaveTheme()">Save colors</button>
+    <button class="btn ghost" style="margin-top:18px;" onclick="adminResetTheme()">Reset to default</button>
+  `);
 }
 async function adminSaveTheme(){
   const accent = document.getElementById('th_accent').value;
   const bg = document.getElementById('th_bg').value;
-  await dbSaveTheme(adminSchool, accent, bg);
-  await refreshAdminData();
-  applyTheme(adminSchool);
-  renderAdmin();
+  await dbSaveTheme(currentSchool, accent, bg);
+  await refreshCurrentSchool();
+  applyTheme(currentSchool);
+  closeModal();
+  goPage(currentPage);
 }
 async function adminResetTheme(){
-  await dbSaveTheme(adminSchool, '#2F6F5E', '#F6F5F0');
-  await refreshAdminData();
-  applyTheme(adminSchool);
-  renderAdmin();
+  await dbSaveTheme(currentSchool, '#2F6F5E', '#F6F5F0');
+  await refreshCurrentSchool();
+  applyTheme(currentSchool);
+  closeModal();
+  goPage(currentPage);
 }
 
 function escAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
