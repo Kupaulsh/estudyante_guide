@@ -87,11 +87,10 @@ function openSchoolMenu(){
   const otherName = other.toUpperCase();
   openModal(`
     <h3>${S().fullName}</h3>
-    <div class="form-grid">
+    <div class="form-grid" style="margin-top:18px;">
       <button class="btn" onclick="closeModal();enterApp('${other}')">Switch to ${otherName}</button>
       ${isAdmin
-        ? `<button class="btn ghost" onclick="closeModal();openThemeModal()">Theme colors</button>
-           <button class="btn ghost" onclick="signOutAdmin();closeModal();">Exit admin</button>`
+        ? `<button class="btn ghost" onclick="signOutAdmin();closeModal();">Exit admin</button>`
         : `<button class="btn ghost" onclick="closeModal();openSignInModal()">Admin</button>`}
     </div>
   `);
@@ -992,7 +991,10 @@ const RULES_ICONS = {
 function renderRules(){
   const r = S().rules;
   const coreActions = isAdmin ? `<button class="icon-btn" onclick="openRulesCoreEdit()" aria-label="Edit">✎</button>` : '';
-  let html = isAdmin ? `<button class="btn" onclick="openRulesSectionAdd()" style="margin-bottom:16px;">+ Add section</button>` : '';
+  let html = isAdmin ? `<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+    <button class="btn" onclick="openRulesSectionAdd()">+ Add section</button>
+    <button class="btn ghost" onclick="openThemeModal()">🎨 Theme colors</button>
+  </div>` : '';
   html += rulesCard(RULES_ICONS.vision, 'Vision', `<p>${nl2br(r.vision)||'Not set yet.'}</p>`, coreActions);
   html += rulesCard(RULES_ICONS.mission, 'Mission', `<p>${nl2br(r.mission)||'Not set yet.'}</p>`, coreActions);
   html += rulesCard(RULES_ICONS.preamble, 'Preamble', `<p>${nl2br(r.preamble)||'Not set yet.'}</p>`, coreActions);

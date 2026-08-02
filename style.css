@@ -186,9 +186,9 @@ main{flex:1;width:100%;max-width:920px;margin:0 auto;padding:26px 20px 140px;}
 #gearNav.open ~ #gearScrim, #gearScrim.show{opacity:1;pointer-events:auto;}
 
 /* ---------- CALENDAR ---------- */
-.cal-layout{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;}
+.cal-layout{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:stretch;}
 @media(max-width:760px){.cal-layout{grid-template-columns:1fr;}}
-.cal-sidebar{position:sticky;top:20px;display:flex;flex-direction:column;gap:14px;}
+.cal-sidebar{display:flex;flex-direction:column;gap:14px;min-height:0;}
 .cal-legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px;}
 .btn-tag{
   display:inline-flex;align-items:center;justify-content:center;
@@ -205,8 +205,8 @@ main{flex:1;width:100%;max-width:920px;margin:0 auto;padding:26px 20px 140px;}
 .icon-btn:hover{border-color:var(--accent);color:var(--accent);}
 .icon-btn.danger:hover{border-color:var(--danger);color:var(--danger);}
 .upcoming-divider{border-top:1px solid var(--line);padding-top:12px;margin-top:4px;}
-.cal-upcoming-card{padding:18px;height:520px;display:flex;flex-direction:column;}
-.cal-upcoming-scroll{flex:1;overflow-y:auto;margin-top:2px;}
+.cal-upcoming-card{padding:18px;flex:1;display:flex;flex-direction:column;min-height:0;}
+.cal-upcoming-scroll{flex:1;overflow-y:auto;margin-top:2px;min-height:0;}
 .upcoming-row{align-items:center;}
 .upcoming-side{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;}
 .check-btn{
