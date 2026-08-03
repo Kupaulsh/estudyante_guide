@@ -251,7 +251,7 @@ function renderCalendar(){
   const daysInMonth = new Date(y,m+1,0).getDate();
   const monthName = calCursor.toLocaleString('default',{month:'long'});
   let html = `<div class="cal-layout">
-  <div class="card">
+  <div class="card cal-card">
     <div class="cal-head">
       <button onclick="shiftMonth(-1)">‹</button>
       <h3>${monthName} ${y}</h3>
@@ -313,24 +313,7 @@ function renderCalendar(){
   </div>
   </div>`;
   setPageContent(html);
-  syncCalendarSidebarHeight();
 }
-function syncCalendarSidebarHeight(){
-  const calCard = document.querySelector('.cal-layout > .card');
-  const sidebar = document.querySelector('.cal-sidebar');
-  if(!calCard || !sidebar) return;
-  if(window.innerWidth <= 760){
-    sidebar.style.height = '';
-    return;
-  }
-  // wait a frame so the calendar card has its real rendered height first
-  requestAnimationFrame(()=>{
-    sidebar.style.height = calCard.offsetHeight + 'px';
-  });
-}
-window.addEventListener('resize', ()=>{
-  if(currentPage === 'calendar') syncCalendarSidebarHeight();
-});
 async function quickDeleteEvent(id){
   if(!confirm('Delete this calendar entry?')) return;
   await dbDeleteEvent(id);
