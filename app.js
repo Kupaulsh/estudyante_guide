@@ -444,6 +444,9 @@ function openSubject(id){
   html += `<div class="section-label">Materials</div>`;
   if(s.materials.length===0) html += `<p style="font-size:13px;color:var(--ink-soft);">No materials uploaded yet.</p>`;
   s.materials.forEach(f=> html += fileRow(f));
+  html += `<div class="section-label">PDF Books</div>`;
+  if(!s.books || s.books.length===0) html += `<p style="font-size:13px;color:var(--ink-soft);">No books added yet.</p>`;
+  (s.books||[]).forEach(b=> html += fileRow({label: b.label + (b.author?` — ${b.author}`:''), type:'BOOK', url:b.url}));
   openModal(html, s.color);
 }
 function fileRow(f, subLabel){
